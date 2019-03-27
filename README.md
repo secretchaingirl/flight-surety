@@ -1,6 +1,6 @@
-# FlightSurety
+# flight-surety
 
-FlightSurety is a sample application project for Udacity's Blockchain course.
+flight-surety is a decentralized app that uses smart contracts to handle flight insurance payouts for delayed flights.
 
 ## Install
 
