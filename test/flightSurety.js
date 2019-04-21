@@ -7,13 +7,15 @@ contract('Flight Surety Tests', async (accounts) => {
   var config;
   before('setup contract', async () => {
     config = await Test.Config(accounts);
+    // Authorize the App contract as caller to Data contract
     await config.flightSuretyData.authorizeCaller(config.flightSuretyApp.address);
+    // Add the 1st airline to boostrap
+    await config.flightSuretyData.addAirline(config.firstAirline, config.firstAirlineName);
   });
 
   /****************************************************************************************/
   /* Operations and Settings                                                              */
   /****************************************************************************************/
-
   it(`(multiparty) has correct initial isOperational() value`, async function () {
 
     // Get operating status
@@ -59,15 +61,33 @@ contract('Flight Surety Tests', async (accounts) => {
       let reverted = false;
       try 
       {
-          await config.flightSurety.setTestingMode(true);
+          await config.flightSuretyApp.setTestingMode(true);
       }
       catch(e) {
           reverted = true;
       }
-      assert.equal(reverted, true, "Access not blocked for requireIsOperational");      
+      finally {
+        // Set it back for other tests to work
+        await config.flightSuretyData.setOperatingStatus(true);
+      }
 
-      // Set it back for other tests to work
-      await config.flightSuretyData.setOperatingStatus(true);
+      assert.equal(reverted, true, "Access not blocked for requireIsOperational");      
+  });
+
+  it('(airline) 1st airline was registered when contract was deployed', async () => {
+
+      // ARRANGE
+      let registered = false;
+    // ACT
+    try {
+        registered = await config.flightSuretyData.isAirline.call(config.firstAirline, {from: config.flightSuretyApp.address});
+    }
+    catch(e) {
+
+    }
+
+    // ASSERT
+    assert.equal(registered, true, "1st airline was not registered when deployed");
 
   });
 
@@ -83,12 +103,12 @@ contract('Flight Surety Tests', async (accounts) => {
     catch(e) {
 
     }
-    let result = await config.flightSuretyData.isAirline.call(newAirline); 
+    let result = await config.flightSuretyData.isAirline.call(newAirline, {from: config.flightSuretyApp.address}); 
 
     // ASSERT
     assert.equal(result, false, "Airline should not be able to register another airline if it hasn't provided funding");
 
   });
- 
+
 
 });

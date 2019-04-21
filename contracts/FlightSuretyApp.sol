@@ -24,16 +24,17 @@ contract FlightSuretyApp {
     uint8 private constant STATUS_CODE_LATE_TECHNICAL = 40;
     uint8 private constant STATUS_CODE_LATE_OTHER = 50;
 
-    address private contractOwner;          // Account used to deploy contract
+    address private contractOwner;  // Account used to deploy contract
+    FlightSuretyData flightSuretyData;  // this is the address of the FlightSuretyData contract
+    bool private testingMode = false;   // Allows authorized callers to put the contract in testing mode
 
     struct Flight {
-        bool isRegistered;
+        //bool isRegistered;
         uint8 statusCode;
         uint256 updatedTimestamp;        
         address airline;
     }
     mapping(bytes32 => Flight) private flights;
-
  
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -49,9 +50,8 @@ contract FlightSuretyApp {
     */
     modifier requireIsOperational() 
     {
-         // Modify to call data contract's status
-        require(true, "Contract is currently not operational");  
-        _;  // All modifiers require an "_" which indicates where the function body will be added
+        require(isOperational(), "Contract is not operational");
+        _;
     }
 
     /**
@@ -73,10 +73,15 @@ contract FlightSuretyApp {
     */
     constructor
                                 (
+                                    address _dataContractAddress
                                 ) 
                                 public 
     {
+        // Set the contract owner
         contractOwner = msg.sender;
+
+        // Set reference to the Data contract
+        flightSuretyData = FlightSuretyData(_dataContractAddress);
     }
 
     /********************************************************************************************/
@@ -85,29 +90,47 @@ contract FlightSuretyApp {
 
     function isOperational() 
                             public 
-                            pure 
+                            view 
                             returns(bool) 
     {
-        return true;  // Modify to call data contract's status
+        return flightSuretyData.isOperational();
+    }
+
+    function setTestingMode
+                            (
+                                bool _testingMode
+                            )
+                            external
+                            requireContractOwner
+                            requireIsOperational
+    {
+        testingMode = _testingMode;
     }
 
     /********************************************************************************************/
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
-
   
    /**
     * @dev Add an airline to the registration queue
     *
     */   
     function registerAirline
-                            (   
+                            (
+                                address account,
+                                string name
                             )
                             external
-                            pure
+                            requireIsOperational
                             returns(bool success, uint256 votes)
     {
-        return (success, 0);
+        require(flightSuretyData.isAirline(msg.sender), "Airline must be registered already in order to add an airline");
+        require(flightSuretyData.isRegistered(msg.sender), "Airline is already registered.");
+
+        // TODO: add check for funding
+        flightSuretyData.addAirline(account, name);
+
+        return(true, 0);
     }
 
 
@@ -121,7 +144,6 @@ contract FlightSuretyApp {
                                 external
                                 pure
     {
-
     }
     
    /**
@@ -334,4 +356,14 @@ contract FlightSuretyApp {
 
 // endregion
 
-}   
+}
+
+// Define the data contract interface
+
+contract FlightSuretyData {
+    function authorizeCaller(address contractAddress) external;
+    function isOperational() public view returns(bool);
+    function isAirline(address _airline) external view returns(bool);
+    function isRegistered(address _airline) external view returns(bool);
+    function addAirline(address account, string name) external returns (bool, uint256);
+}
