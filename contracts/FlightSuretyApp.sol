@@ -31,7 +31,8 @@ contract FlightSuretyApp {
     struct Flight {
         //bool isRegistered;
         uint8 statusCode;
-        uint256 updatedTimestamp;        
+        uint256 updatedTimestamp;
+        uint8 flightNo;
         address airline;
     }
     mapping(bytes32 => Flight) private flights;
@@ -122,15 +123,20 @@ contract FlightSuretyApp {
                             )
                             external
                             requireIsOperational
-                            returns(bool success, uint256 votes)
+                            returns(bool, uint)
     {
         require(flightSuretyData.isAirline(msg.sender), "Airline must be registered already in order to add an airline");
         require(flightSuretyData.isRegistered(msg.sender), "Airline is already registered.");
 
         // TODO: add check for funding
-        flightSuretyData.addAirline(account, name);
+        flightSuretyData.add(account, name);
 
-        return(true, 0);
+        uint registrations;
+        uint votes;
+        
+        (registrations, votes) = flightSuretyData.vote(account);
+
+        return(true, votes);
     }
 
 
@@ -361,9 +367,16 @@ contract FlightSuretyApp {
 // Define the data contract interface
 
 contract FlightSuretyData {
-    function authorizeCaller(address contractAddress) external;
     function isOperational() public view returns(bool);
-    function isAirline(address _airline) external view returns(bool);
-    function isRegistered(address _airline) external view returns(bool);
-    function addAirline(address account, string name) external returns (bool, uint256);
+
+    //
+    // Airline operations
+    //
+
+    function isAirline(address account) external view returns(bool);
+    function isRegistered(address account) external view returns(bool);
+
+    function add(address account, string name) external;
+    function vote(address account) external returns(uint, uint);
+    function approve(address _airline) external;
 }

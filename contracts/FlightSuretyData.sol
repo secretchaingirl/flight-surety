@@ -10,20 +10,23 @@ contract FlightSuretyData {
     /********************************************************************************************/
 
     address private contractOwner;                              // Account used to deploy contract
+    uint balance;                                               // Records the contract balance
     bool private operational = true;                            // Blocks all state changes throughout the contract if false
     uint private nonce = 1;                                     // Airline nonce
+
+    uint private registeredAirlines = 0;                        // Number of airlines registered with the contract
 
     mapping(address => bool) private authorizedContracts;       // Mapping for contracts authorized to call data contract
 
     struct Registration {
         string name;
         bool registered;
-        bool funded;    
+        bool funded; 
+        uint votes;   
     }
 
-    mapping(address => uint) private airlines;                       // Mapping for storing airlines
-
-    mapping(address => Registration) private registrations;            // Mapping for storing status of airline registrations
+    mapping(address => uint) private airlines;                      // Mapping for storing airlines
+    mapping(address => Registration) private registrations;         // Mapping for storing status of airline registrations
 
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
@@ -133,6 +136,16 @@ contract FlightSuretyData {
         delete authorizedContracts[contractAddress];
     }
 
+    function getBalance
+                        (
+                        )
+                        external
+                        view
+                        returns (uint)
+    {
+        return balance;
+    }
+
     /********************************************************************************************/
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
@@ -174,18 +187,13 @@ contract FlightSuretyData {
     *      Can only be called from FlightSuretyApp contract
     *
     */   
-    function addAirline
+    function add
                             (
                                 address _airline,
                                 string _name
                             )
                             external
                             isAuthorized
-                            returns
-                            (
-                                bool, 
-                                uint256
-                            )
     {
         require(_airline != address(0), "must be a valid address.");
         require(airlines[_airline] == 0, "airline already added.");
@@ -195,13 +203,74 @@ contract FlightSuretyData {
         registrations[_airline] = Registration({
             registered: false,
             funded: false,
-            name: _name
+            name: _name,
+            votes: 0
         });
-
-        // success and # of votes
-        return(true, 0);
     }
 
+   /**
+    * @dev vote on pending airline registration
+    *   Returns the # of registrations in the contract
+    *   and the # of votes this airline has received
+    *
+    */   
+    function vote
+                    (
+                        address _airline
+                    )
+                    external
+                    isAuthorized
+                    returns
+                    (
+                        uint, 
+                        uint
+                    )
+    {
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline] > 0, "airline not found.");
+
+        registrations[_airline].votes++;
+
+        // # of registered airlines and # of votes for this airline
+        return(registeredAirlines, registrations[_airline].votes);
+    }
+
+    /**
+    * @dev approve airline registration
+    *   Marks the airline as 'registered' and increments the total number of registered airlines for the contract
+    *
+    */   
+    function approve
+                    (
+                        address _airline
+                    )
+                    external
+                    isAuthorized
+    {
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline] > 0, "airline not found.");
+
+        registrations[_airline].registered = true;
+        registeredAirlines++;
+    }
+
+    /**
+    * @dev Initial funding for the insurance. Unless there are too many delayed flights
+    *      resulting in insurance payouts, the contract should be self-sustaining
+    *
+    */   
+    function fund
+                            (   
+                            )
+                            public
+                            payable
+    {
+        require(msg.value >= 10 ether, "Funding requires 10 ether");
+        require(airlines[msg.sender] > 0, "airline not found.");
+
+        balance += msg.value;
+        registrations[msg.sender].funded = true;
+    }
 
    /**
     * @dev Buy insurance for a flight
@@ -237,19 +306,6 @@ contract FlightSuretyData {
                             )
                             external
                             pure
-    {
-    }
-
-   /**
-    * @dev Initial funding for the insurance. Unless there are too many delayed flights
-    *      resulting in insurance payouts, the contract should be self-sustaining
-    *
-    */   
-    function fund
-                            (   
-                            )
-                            public
-                            payable
     {
     }
 

@@ -10,7 +10,10 @@ contract('Flight Surety Tests', async (accounts) => {
     // Authorize the App contract as caller to Data contract
     await config.flightSuretyData.authorizeCaller(config.flightSuretyApp.address);
     // Add the 1st airline to boostrap
-    await config.flightSuretyData.addAirline(config.firstAirline, config.firstAirlineName);
+    await config.flightSuretyData.add(config.firstAirline, config.firstAirlineName);
+    await config.flightSuretyData.vote(config.firstAirline);
+    await config.flightSuretyData.approve(config.firstAirline);
+    //await config.flightSuretyData.fund({from: accounts[1], value: web3.utils.toWei('10', 'ether')});
   });
 
   /****************************************************************************************/

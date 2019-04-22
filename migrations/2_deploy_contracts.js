@@ -31,14 +31,19 @@ module.exports = async function(deployer, network, accounts) {
                     //  - authorize app contract as caller of the data contract
                     return FlightSuretyData.deployed()
                         .then((dataInstance) => {
-                            return dataInstance.addAirline(accounts[1], airLine)
-                                .then(() => {
+                            return dataInstance.authorizeCaller(FlightSuretyApp.address)
+                                .then(async () => {
+
+                                    console.log('FlightSuretyApp contract address authorized as caller of data contract');
+
+                                    await dataInstance.add(accounts[1], airLine)
                                     console.log(`${accounts[1]} - airline added (${airLine})`);
 
-                                    return dataInstance.authorizeCaller(FlightSuretyApp.address)
-                                        .then(() => {
-                                            console.log('FlightSuretyApp contract address authorized as caller of data contract');
-                                        });
+                                    await dataInstance.vote(accounts[1]);
+                                    console.log('1 vote');
+
+                                    await dataInstance.approve(accounts[1]);
+                                    console.log('Approved.');
                                 });
                         });
                 });
