@@ -101,26 +101,46 @@ contract('Flight Surety Tests', async (accounts) => {
     let spirit = accounts[4];
     let jetblue = accounts[5];
     let norwegian = accounts[6];
+    let alaskan = accounts[7];
 
     // ACT
     try {
         await config.flightSuretyApp.register(aa, "American Airlines", {from: config.firstAirline});
         await config.flightSuretyApp.register(united, "United Airlines", {from: config.firstAirline});
         await config.flightSuretyApp.register(spirit, "Spirit", {from: config.firstAirline});
-        await config.flightSuretyApp.register(jetblue, "Jet Blue", {from: config.firstAirline});
+        await config.flightSuretyApp.register(jetblue, "JetBlue", {from: config.firstAirline});
         await config.flightSuretyApp.register(norwegian, "Norwegian Airlines", {from: config.firstAirline});
+        await config.flightSuretyApp.register(alaskan, "Alaskan Airlines", {from: config.firstAirline});
+
+        // Add votes to satisfy 50% and trigger registration approval for Jet Blue (6th airline)
+        await config.flightSuretyApp.vote(norwegian, {from: aa});
+        await config.flightSuretyApp.vote(norwegian, {from: united});
     }
     catch(e) {
         console.log(e.message);
     }
 
+   
     // ASSERT
-    // < 5 
+    // < 5 should be automatically registered
     let result = await config.flightSuretyData.isRegistered.call(aa, {from: config.flightSuretyApp.address}); 
     assert.equal(result, true, "New airline should be registered automatically if < 5 airlines already registered.");
 
-    // M of N
+    result = await config.flightSuretyData.isRegistered.call(united, {from: config.flightSuretyApp.address}); 
+    assert.equal(result, true, "New airline should be registered automatically if < 5 airlines already registered.");
+
+    result = await config.flightSuretyData.isRegistered.call(spirit, {from: config.flightSuretyApp.address}); 
+    assert.equal(result, true, "New airline should be registered automatically if < 5 airlines already registered.");
+
+    result = await config.flightSuretyData.isRegistered.call(jetblue, {from: config.flightSuretyApp.address}); 
+    assert.equal(result, true, "New airline should be registered automatically if < 5 airlines already registered.");
+    
+    // M of N - 50% votes or more should trigger registration
     result = await config.flightSuretyData.isRegistered.call(norwegian, {from: config.flightSuretyApp.address}); 
+    assert.equal(result, true, "New airline should be registered automatically when M of N voting is satisfied.");
+
+    // M of N - less than 50% votes and airline should note be registered
+    result = await config.flightSuretyData.isRegistered.call(alaskan, {from: config.flightSuretyApp.address}); 
     assert.equal(result, false, "Airline shouldn't be registered unless 50% of registered airlines have voted to approve.");
 
   });
@@ -129,7 +149,7 @@ contract('Flight Surety Tests', async (accounts) => {
   it('(airline) cannot register an Airline using registerAirline() if it is not funded', async () => {
     
     // ARRANGE
-    let newAirline = accounts[7];
+    let newAirline = accounts[8];
 
     // ACT
     try {

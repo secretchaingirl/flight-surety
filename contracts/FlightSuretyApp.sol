@@ -133,9 +133,6 @@ contract FlightSuretyApp {
         require(flightSuretyData.isAirline(msg.sender), "Airline must be registered already in order to add an airline");
         require(flightSuretyData.isRegistered(msg.sender), "Airline is already registered.");
 
-        uint registrations;
-        uint votes;
-
         flightSuretyData.add(account, name);
 
         return(
@@ -145,7 +142,7 @@ contract FlightSuretyApp {
             )
         );
     }
-    
+
 
     /**
     * @dev Multi-party Consensus requires 50% consensus to register an airline
@@ -161,7 +158,7 @@ contract FlightSuretyApp {
                 returns(bool)
     {
         require(flightSuretyData.isAirline(msg.sender), "Airline must be registered already in order to add an airline");
-        require(flightSuretyData.isRegistered(msg.sender), "Airline is already registered.");
+        require(flightSuretyData.isRegistered(msg.sender), "Voting airline is not registered.");
         require(flightSuretyData.isAirline(account), "Airline not found.");
         require(flightSuretyData.isRegistered(account) == false, "Airline already registered.");
 
