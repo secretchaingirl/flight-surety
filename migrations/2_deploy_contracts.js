@@ -36,14 +36,13 @@ module.exports = async function(deployer, network, accounts) {
 
                                     console.log('FlightSuretyApp contract address authorized as caller of data contract');
 
+                                    /*
                                     await dataInstance.add(accounts[1], airLine)
                                     console.log(`${accounts[1]} - airline added (${airLine})`);
 
                                     await dataInstance.vote(accounts[1]);
                                     console.log('1 vote');
-
-                                    await dataInstance.approve(accounts[1]);
-                                    console.log('Approved.');
+                                    */
                                 });
                         });
                 });

@@ -55,6 +55,7 @@ contract FlightSuretyApp {
         _;
     }
 
+
     /**
     * @dev Modifier that requires the "ContractOwner" account to be the function caller
     */
@@ -63,6 +64,7 @@ contract FlightSuretyApp {
         require(msg.sender == contractOwner, "Caller is not contract owner");
         _;
     }
+
 
     /********************************************************************************************/
     /*                                       CONSTRUCTOR                                        */
@@ -85,6 +87,7 @@ contract FlightSuretyApp {
         flightSuretyData = FlightSuretyData(_dataContractAddress);
     }
 
+
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
@@ -97,6 +100,7 @@ contract FlightSuretyApp {
         return flightSuretyData.isOperational();
     }
 
+
     function setTestingMode
                             (
                                 bool _testingMode
@@ -108,6 +112,7 @@ contract FlightSuretyApp {
         testingMode = _testingMode;
     }
 
+
     /********************************************************************************************/
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
@@ -116,27 +121,63 @@ contract FlightSuretyApp {
     * @dev Add an airline to the registration queue
     *
     */   
-    function registerAirline
-                            (
-                                address account,
-                                string name
-                            )
-                            external
-                            requireIsOperational
-                            returns(bool, uint)
+    function register
+                    (
+                        address account,
+                        string name
+                    )
+                    external
+                    requireIsOperational
+                    returns(bool)
     {
         require(flightSuretyData.isAirline(msg.sender), "Airline must be registered already in order to add an airline");
         require(flightSuretyData.isRegistered(msg.sender), "Airline is already registered.");
 
-        // TODO: add check for funding
+        uint registrations;
+        uint votes;
+
         flightSuretyData.add(account, name);
+
+        return(
+            this.delegatecall(
+                bytes4(keccak256("vote(address)")), 
+                account
+            )
+        );
+    }
+    
+
+    /**
+    * @dev Multi-party Consensus requires 50% consensus to register an airline
+    *   Registered airlines submit a vote and approval is triggered when M of N is satisfied
+    *
+    */   
+    function vote
+                (
+                    address account
+                )
+                external
+                requireIsOperational
+                returns(bool)
+    {
+        require(flightSuretyData.isAirline(msg.sender), "Airline must be registered already in order to add an airline");
+        require(flightSuretyData.isRegistered(msg.sender), "Airline is already registered.");
+        require(flightSuretyData.isAirline(account), "Airline not found.");
+        require(flightSuretyData.isRegistered(account) == false, "Airline already registered.");
 
         uint registrations;
         uint votes;
-        
+
         (registrations, votes) = flightSuretyData.vote(account);
 
-        return(true, votes);
+        // Approve the registration is there are less than 5 airlines currently registered
+        //  OR
+        // When the airline has received 50% of the vote
+        if (registrations < 5 || ((votes * 2) >= registrations)) {
+            flightSuretyData.approve(account);
+            return(true);
+        }
+        return(false);
     }
 
 

@@ -7,9 +7,8 @@ contract('Flight Surety Tests', async (accounts) => {
   var config;
   before('setup contract', async () => {
     config = await Test.Config(accounts);
-    // Authorize the App contract as caller to Data contract
-    await config.flightSuretyData.authorizeCaller(config.flightSuretyApp.address);
-    // Add the 1st airline to boostrap
+
+    // Boostrap the test with an initial airline
     await config.flightSuretyData.add(config.firstAirline, config.firstAirlineName);
     await config.flightSuretyData.vote(config.firstAirline);
     await config.flightSuretyData.approve(config.firstAirline);
@@ -94,10 +93,43 @@ contract('Flight Surety Tests', async (accounts) => {
 
   });
 
+  it('(airline) requires 50% of airlines for registration when there are more than 5', async () => {
+    
+    // ARRANGE
+    let aa = accounts[2];
+    let united = accounts[3];
+    let spirit = accounts[4];
+    let jetblue = accounts[5];
+    let norwegian = accounts[6];
+
+    // ACT
+    try {
+        await config.flightSuretyApp.register(aa, "American Airlines", {from: config.firstAirline});
+        await config.flightSuretyApp.register(united, "United Airlines", {from: config.firstAirline});
+        await config.flightSuretyApp.register(spirit, "Spirit", {from: config.firstAirline});
+        await config.flightSuretyApp.register(jetblue, "Jet Blue", {from: config.firstAirline});
+        await config.flightSuretyApp.register(norwegian, "Norwegian Airlines", {from: config.firstAirline});
+    }
+    catch(e) {
+        console.log(e.message);
+    }
+
+    // ASSERT
+    // < 5 
+    let result = await config.flightSuretyData.isRegistered.call(aa, {from: config.flightSuretyApp.address}); 
+    assert.equal(result, true, "New airline should be registered automatically if < 5 airlines already registered.");
+
+    // M of N
+    result = await config.flightSuretyData.isRegistered.call(norwegian, {from: config.flightSuretyApp.address}); 
+    assert.equal(result, false, "Airline shouldn't be registered unless 50% of registered airlines have voted to approve.");
+
+  });
+
+
   it('(airline) cannot register an Airline using registerAirline() if it is not funded', async () => {
     
     // ARRANGE
-    let newAirline = accounts[2];
+    let newAirline = accounts[7];
 
     // ACT
     try {

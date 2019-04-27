@@ -182,6 +182,20 @@ contract FlightSuretyData {
         return registrations[_airline].registered;
     }
 
+    /**
+     * @dev Get the number of currently registered airlines
+     */
+    function getRegistrationCount
+                        (
+                        )
+                        external
+                        view 
+                        isAuthorized 
+                        returns(uint)
+    {
+        return registeredAirlines;
+    }
+
    /**
     * @dev Add an airline to the registration queue
     *      Can only be called from FlightSuretyApp contract
