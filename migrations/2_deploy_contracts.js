@@ -4,7 +4,7 @@ const fs = require('fs');
 
 module.exports = async function(deployer, network, accounts) {
 
-    const airLine = 'Delta';
+    const delta = accounts[1];      // 1st airline to be bootstrapped in contracts
 
     deployer.deploy(FlightSuretyData)
         .then(() => {
@@ -25,24 +25,25 @@ module.exports = async function(deployer, network, accounts) {
 
                     console.log('Dapp and Oracle configurations deployed');
 
-                    // Finish contract setup by:
-                    //  - get data contract instance
-                    //  - add the 1st airline to the data contract to bootstrap
-                    //  - authorize app contract as caller of the data contract
                     return FlightSuretyData.deployed()
-                        .then((dataInstance) => {
-                            return dataInstance.authorizeCaller(FlightSuretyApp.address)
-                                .then(async () => {
+                        .then(async (dataInstance) => {
+                            await dataInstance.authorizeCaller(FlightSuretyApp.address);
+                            console.log('FlightSuretyApp contract address authorized as caller of FlightSuretyData contract');
 
-                                    console.log('FlightSuretyApp contract address authorized as caller of data contract');
+                            // Finish contract setup by bootstrapping:
+                            //  - add 1st airline
+                            //  - vote for 1st airline
+                            //  - approve 1st airline (registered)
+                            await dataInstance.add(delta, "Delta Airlines");
+                            await dataInstance.vote(delta);
+                            await dataInstance.approve(delta);
+                            console.log('Initial airline registered (Delta)');
 
-                                    /*
-                                    await dataInstance.add(accounts[1], airLine)
-                                    console.log(`${accounts[1]} - airline added (${airLine})`);
-
-                                    await dataInstance.vote(accounts[1]);
-                                    console.log('1 vote');
-                                    */
+                            // Get App contract instance and submit funding for 1st airline
+                            return FlightSuretyApp.deployed()
+                                .then(async (appInstance) => {
+                                    await appInstance.fund({from: delta, value: web3.utils.toWei('10', 'ether')});
+                                    console.log('Initial airline funded with 10 ether');
                                 });
                         });
                 });
