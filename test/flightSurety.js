@@ -5,14 +5,26 @@ var BigNumber = require('bignumber.js');
 contract('Flight Surety Tests', async (accounts) => {
 
   var config;
+
+  let delta = accounts[1];
+  let aa = accounts[2];
+  let united = accounts[3];
+  let spirit = accounts[4];
+  let jetblue = accounts[5];
+  let norwegian = accounts[6];
+  let alaskan = accounts[7];
+  let british = accounts[8];
+
   before('setup contract', async () => {
     config = await Test.Config(accounts);
 
     // Boostrap the test with an initial airline
-    await config.flightSuretyData.add(config.firstAirline, config.firstAirlineName);
-    await config.flightSuretyData.vote(config.firstAirline);
-    await config.flightSuretyData.approve(config.firstAirline);
-    //await config.flightSuretyData.fund({from: accounts[1], value: web3.utils.toWei('10', 'ether')});
+    await config.flightSuretyData.add(delta, "Delta Airlines");
+    await config.flightSuretyData.vote(delta);
+    await config.flightSuretyData.approve(delta);
+
+    // Use the App contract to fund 1st airline
+    await config.flightSuretyApp.fund({from: delta, value: web3.utils.toWei('10', 'ether')});
   });
 
   /****************************************************************************************/
@@ -82,7 +94,7 @@ contract('Flight Surety Tests', async (accounts) => {
       let registered = false;
     // ACT
     try {
-        registered = await config.flightSuretyData.isAirline.call(config.firstAirline, {from: config.flightSuretyApp.address});
+        registered = await config.flightSuretyData.isAirline.call(delta, {from: config.flightSuretyApp.address});
     }
     catch(e) {
 
@@ -93,24 +105,58 @@ contract('Flight Surety Tests', async (accounts) => {
 
   });
 
+  it('(airline) 1st airline was funded when contract was deployed', async () => {
+
+    // ARRANGE
+    let funded = false;
+    // ACT
+    try {
+        funded = await config.flightSuretyData.isFunded.call(delta, {from: config.flightSuretyApp.address});
+    }
+    catch(e) {
+
+    }
+
+    // ASSERT
+    assert.equal(funded, true, "1st airline was not funded when deployed");
+
+  });
+
+  it('(airline) Registered airline cannot participate until funded', async () => {
+
+    // ARRANGE
+    let flight = true;
+    try {
+        await config.flightSuretyApp.register(aa, "American Airlines", {from: delta});
+        await config.flightSuretyApp.registerFlight.call({from: aa});
+    }
+    catch(e) {
+        flight = false;
+    }
+    finally {
+        await config.flightSuretyApp.fund({from: aa, value: web3.utils.toWei('10', 'ether')});
+    }
+
+    // ASSERT
+    assert.equal(flight, false, "Airline can't participate until funded with 10 ether");
+
+  });
+
   it('(airline) requires 50% of airlines for registration when there are more than 5', async () => {
     
     // ARRANGE
-    let aa = accounts[2];
-    let united = accounts[3];
-    let spirit = accounts[4];
-    let jetblue = accounts[5];
-    let norwegian = accounts[6];
-    let alaskan = accounts[7];
 
     // ACT
-    try {
-        await config.flightSuretyApp.register(aa, "American Airlines", {from: config.firstAirline});
-        await config.flightSuretyApp.register(united, "United Airlines", {from: config.firstAirline});
-        await config.flightSuretyApp.register(spirit, "Spirit", {from: config.firstAirline});
-        await config.flightSuretyApp.register(jetblue, "JetBlue", {from: config.firstAirline});
-        await config.flightSuretyApp.register(norwegian, "Norwegian Airlines", {from: config.firstAirline});
-        await config.flightSuretyApp.register(alaskan, "Alaskan Airlines", {from: config.firstAirline});
+    try {        
+        await config.flightSuretyApp.register(united, "United Airlines", {from: delta});
+        await config.flightSuretyApp.fund({from: united, value: web3.utils.toWei('10', 'ether')});
+
+        await config.flightSuretyApp.register(spirit, "Spirit", {from: delta});
+        await config.flightSuretyApp.fund({from: spirit, value: web3.utils.toWei('10', 'ether')});
+
+        await config.flightSuretyApp.register(jetblue, "JetBlue", {from: delta});
+        await config.flightSuretyApp.register(norwegian, "Norwegian Airlines", {from: delta});
+        await config.flightSuretyApp.register(alaskan, "Alaskan Airlines", {from: delta});
 
         // Add votes to satisfy 50% and trigger registration approval for Jet Blue (6th airline)
         await config.flightSuretyApp.vote(norwegian, {from: aa});
@@ -146,24 +192,30 @@ contract('Flight Surety Tests', async (accounts) => {
   });
 
 
-  it('(airline) cannot register an Airline using registerAirline() if it is not funded', async () => {
+  it('(airline) cannot vote for an Airline if caller is not funded', async () => {
     
     // ARRANGE
-    let newAirline = accounts[8];
+    // n/a
 
     // ACT
     try {
-        await config.flightSuretyApp.registerAirline(newAirline, {from: config.firstAirline});
+        await config.flightSuretyApp.vote(british, {from: norwegian});
     }
     catch(e) {
 
     }
-    let result = await config.flightSuretyData.isAirline.call(newAirline, {from: config.flightSuretyApp.address}); 
+
+    let airline = await config.flightSuretyData.isAirline.call(british, {from: config.flightSuretyApp.address});
+    let registered = await config.flightSuretyData.isRegistered.call(british, {from: config.flightSuretyApp.address});
 
     // ASSERT
-    assert.equal(result, false, "Airline should not be able to register another airline if it hasn't provided funding");
+    assert.equal
+        (
+            airline == false && registered == false, 
+            true, 
+            "Airline should not be able to vote for an airline if it hasn't provided funding"
+        );
 
   });
-
 
 });

@@ -66,6 +66,42 @@ contract FlightSuretyApp {
     }
 
 
+    /**
+    * @dev Modifier that requires the function caller to be an Airline
+    */
+    modifier requireIsAirline()
+    {
+        require(flightSuretyData.isAirline(msg.sender), "Caller is not a valid Airline.");
+        _;
+    }
+
+
+    /**
+    * @dev Modifier that requires the function caller to be a Registered Airline
+    */
+    modifier requireIsRegistered()
+    {
+        require(flightSuretyData.isRegistered(msg.sender), "Caller is not a registered Airline.");
+        _;
+    }
+
+
+    /**
+    * @dev Modifier that requires the "Registered Airline" account to be funded
+    *       Airlines can be registered, but cannot participate in the 
+    *       contract unless they've provided funding of at least 10 ether
+    */
+    modifier requireIsFunded()
+    {
+        require
+            (
+                flightSuretyData.isFunded(msg.sender) == true, 
+                "Airline cannot participate due to lack of funding (10 ether required)."
+            );
+        _;
+    }
+
+
     /********************************************************************************************/
     /*                                       CONSTRUCTOR                                        */
     /********************************************************************************************/
@@ -92,6 +128,9 @@ contract FlightSuretyApp {
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
 
+    /**
+    * @dev Function that determines if the Contract is OPERATIONAL
+    */
     function isOperational() 
                             public 
                             view 
@@ -101,6 +140,9 @@ contract FlightSuretyApp {
     }
 
 
+    /**
+    * @dev Allows the Contract to be put in Testing mode
+    */
     function setTestingMode
                             (
                                 bool _testingMode
@@ -117,6 +159,28 @@ contract FlightSuretyApp {
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
   
+  /**
+    * @dev Allows calling Airline to provide funding and be able to participate in the contract.
+    *   This method implements a business rule:
+    *       funding >= 10 ether
+    *
+    */   
+    function fund
+                            (   
+                            )
+                            public
+                            payable
+                            requireIsAirline
+    {
+        require(msg.value >= 10 ether, "Funding requires at least 10 ether.");
+
+        // send funds to data contract
+        //  Pass msg.sender so the airline can be credited with the funds
+        //address(flightSuretyData).fund.value(msg.value)(msg.sender);
+        flightSuretyData.fund.value(msg.value)(msg.sender);
+    }
+
+
    /**
     * @dev Add an airline to the registration queue
     *
@@ -128,11 +192,11 @@ contract FlightSuretyApp {
                     )
                     external
                     requireIsOperational
+                    requireIsAirline
+                    requireIsRegistered
+                    requireIsFunded
                     returns(bool)
     {
-        require(flightSuretyData.isAirline(msg.sender), "Airline must be registered already in order to add an airline");
-        require(flightSuretyData.isRegistered(msg.sender), "Airline is already registered.");
-
         flightSuretyData.add(account, name);
 
         return(
@@ -155,12 +219,13 @@ contract FlightSuretyApp {
                 )
                 external
                 requireIsOperational
+                requireIsAirline
+                requireIsRegistered
+                requireIsFunded
                 returns(bool)
     {
-        require(flightSuretyData.isAirline(msg.sender), "Airline must be registered already in order to add an airline");
-        require(flightSuretyData.isRegistered(msg.sender), "Voting airline is not registered.");
-        require(flightSuretyData.isAirline(account), "Airline not found.");
-        require(flightSuretyData.isRegistered(account) == false, "Airline already registered.");
+        require(flightSuretyData.isAirline(account) == true, "Can't vote for Airline that doesn't exist.");
+        require(flightSuretyData.isRegistered(account) == false, "Can't vote for Airline that's already been registered.");
 
         uint registrations;
         uint votes;
@@ -186,7 +251,8 @@ contract FlightSuretyApp {
                                 (
                                 )
                                 external
-                                pure
+                                view
+                                requireIsFunded
     {
     }
     
@@ -202,7 +268,8 @@ contract FlightSuretyApp {
                                     uint8 statusCode
                                 )
                                 internal
-                                pure
+                                view
+                                requireIsFunded
     {
     }
 
@@ -215,6 +282,7 @@ contract FlightSuretyApp {
                             uint256 timestamp                            
                         )
                         external
+                        requireIsFunded
     {
         uint8 index = getRandomIndex(msg.sender);
 
@@ -400,6 +468,17 @@ contract FlightSuretyApp {
 
 // endregion
 
+    /**
+    * @dev Fallback function for funding smart contract.
+    *
+    */
+    function() 
+                            external 
+                            payable 
+                            requireIsOperational
+    {
+        fund();
+    }
 }
 
 // Define the data contract interface
@@ -413,8 +492,10 @@ contract FlightSuretyData {
 
     function isAirline(address account) external view returns(bool);
     function isRegistered(address account) external view returns(bool);
+    function isFunded(address account) external view returns(bool);
 
     function add(address account, string name) external;
     function vote(address account) external returns(uint, uint);
     function approve(address _airline) external;
+    function fund(address _airline) public payable;
 }

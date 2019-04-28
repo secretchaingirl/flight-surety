@@ -183,6 +183,22 @@ contract FlightSuretyData {
     }
 
     /**
+     * @dev Determines if Airline is funded
+     */
+    function isFunded
+                        (
+                            address _airline
+                        )
+                        external
+                        view 
+                        isAuthorized 
+                        returns(bool)
+    {
+        require(_airline != address(0), "must be a valid address.");
+        return registrations[_airline].funded;
+    }
+
+    /**
      * @dev Get the number of currently registered airlines
      */
     function getRegistrationCount
@@ -289,16 +305,18 @@ contract FlightSuretyData {
     *
     */   
     function fund
-                            (   
+                            (  
+                                address _airline 
                             )
                             public
                             payable
+                            isAuthorized
     {
-        require(msg.value >= 10 ether, "Funding requires 10 ether");
-        require(airlines[msg.sender] > 0, "airline not found.");
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline] > 0, "airline not found.");
 
         balance += msg.value;
-        registrations[msg.sender].funded = true;
+        registrations[_airline].funded = true;
     }
 
    /**
@@ -354,13 +372,18 @@ contract FlightSuretyData {
     /**
     * @dev Fallback function for funding smart contract.
     *
+    *   Can only be called by the contract owner. The App contract will call the fund() method
+    *   and pass the valid Airline account so it can be credited properly.
+    *
+    *   NOTE: the fallback function could be used by the contract owner to setup intial
+    *   funding of the FlightSurety insurance program.
     */
     function() 
                             external 
                             payable 
+                            requireContractOwner
                             requireIsOperational
     {
-        fund();
     }
 }
 
