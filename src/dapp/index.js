@@ -13,7 +13,10 @@ import './flightsurety.css';
         // Read transaction
         contract.isOperational((error, result) => {
             console.log(error,result);
-            display('Operational Status', 'Check if contract is operational', [ { label: 'Operational Status', error: error, value: result} ]);
+            display('Operational Status', result ? 'UP' : 'DOWN', []);
+            if (error) {
+                display('Errors', 'Report errors', [ { label: 'List Errors', error: error, value: 'must be in test mode'}]);
+            }
         });
     
 

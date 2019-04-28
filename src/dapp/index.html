@@ -20,14 +20,73 @@
     </nav>
 
     <main class="container">
-
         <div id="display-wrapper" class="top-20">
         </div>
-        <div class="row top-20">
-            <label class="form">Flight</label> <input type="text" id="flight-number"> <btn class="btn btn-primary" id="submit-oracle">Submit to Oracles</btn>
-        </div>
     </main>
-
+    <main class="container">
+            <h1>Airline</h1>
+            <div class="row top-20">  
+                <label class="form">Address</label> 
+                <input type="text" id="airline-address">
+                <label class="form">Name</label> 
+                <input type="text" id="airline-name"> 
+                <btn class="btn btn-primary" id="submit-register-airline">Register Airline</btn>
+            </div>
+            <br/>
+            <br/>
+    </main>
+    <main class="container">
+            <h1>Voting</h1>
+            <div class="row top-20">  
+                <label class="form">Airline (address)</label> 
+                <input type="text" id="airline-vote-address">
+                <btn class="btn btn-primary" id="submit-vote-airline">Vote for Airline</btn>
+            </div>
+            <br/>
+            <br/>
+    </main>
+    <main class="container">
+            <h1>Flights</h1>
+            <div class="row top-20">
+                <label class="form">Airline</label> 
+                <input type="text" id="flight-airline" value="Delta">
+                <label class="form">Flight #</label> 
+                <input type="text" id="flight-number">
+                <label class="form">Code</label> 
+                <input type="text" id="flight-code">
+                <btn class="btn btn-primary" id="submit-register-flight">Register Flight</btn>
+            </div>
+            <br/>
+            <br/>
+    </main>
+    <main class="container">
+            <h1>Passengers</h1>
+            <div class="row top-20">
+                <label class="form">Flight</label> 
+                <input type="text" id="insurance-flight-airline" value="Delta">
+                <label class="form">Flight #</label> 
+                <input type="text" id="insurance-flight-number">
+                <label class="form">Code</label> 
+                <input type="text" id="insurance-flight-code">
+                <btn class="btn btn-primary" id="submit-purchase-insurance">Purchase Insurance</btn>
+            </div>
+            <br/>
+            <br/>
+    </main>
+    <main class="container">
+            <h1>Oracles</h1>
+            <div class="row top-20">
+                <label class="form">Flight</label> <input type="text" id="oracle-flight-number"> <btn class="btn btn-primary" id="submit-oracle">Submit to Oracles</btn>
+            </div>
+            <br/>
+            <br/>
+    </main>
+    <br/>
+    <br/>
+    <br/>
+    <br/>
+    <br/>
+    <br/>
 </body>
 
 </html>
