@@ -19,12 +19,12 @@ contract('Flight Surety Tests', async (accounts) => {
     config = await Test.Config(accounts);
 
     // Boostrap the test with an initial airline
-    await config.flightSuretyData.add(delta, "Delta Airlines");
-    await config.flightSuretyData.vote(delta);
-    await config.flightSuretyData.approve(delta);
+    await config.flightSuretyData.addAirline(delta, "Delta Airlines");
+    await config.flightSuretyData.addVote(delta);
+    await config.flightSuretyData.approveAirline(delta);
 
     // Use the App contract to fund 1st airline
-    await config.flightSuretyApp.fund({from: delta, value: web3.utils.toWei('10', 'ether')});
+    await config.flightSuretyApp.fundAirline({from: delta, value: web3.utils.toWei('10', 'ether')});
   });
 
   /****************************************************************************************/
@@ -127,14 +127,22 @@ contract('Flight Surety Tests', async (accounts) => {
     // ARRANGE
     let flight = true;
     try {
-        await config.flightSuretyApp.register(aa, "American Airlines", {from: delta});
-        await config.flightSuretyApp.registerFlight.call({from: aa});
+        await config.flightSuretyApp.registerAirline(aa, "American Airlines", {from: delta});
+        await config.flightSuretyApp.registerFlight.call(
+                                                            aa,
+                                                            "AA4988",
+                                                            "GRR",
+                                                            "2019-06-01T08:30",
+                                                            "MLE",
+                                                            "2019-06-30T13:55",
+                                                            {from: aa}
+                                                        );
     }
     catch(e) {
         flight = false;
     }
     finally {
-        await config.flightSuretyApp.fund({from: aa, value: web3.utils.toWei('10', 'ether')});
+        await config.flightSuretyApp.fundAirline({from: aa, value: web3.utils.toWei('10', 'ether')});
     }
 
     // ASSERT
@@ -148,19 +156,19 @@ contract('Flight Surety Tests', async (accounts) => {
 
     // ACT
     try {        
-        await config.flightSuretyApp.register(united, "United Airlines", {from: delta});
-        await config.flightSuretyApp.fund({from: united, value: web3.utils.toWei('10', 'ether')});
+        await config.flightSuretyApp.registerAirline(united, "United Airlines", {from: delta});
+        await config.flightSuretyApp.fundAirline({from: united, value: web3.utils.toWei('10', 'ether')});
 
-        await config.flightSuretyApp.register(spirit, "Spirit", {from: delta});
-        await config.flightSuretyApp.fund({from: spirit, value: web3.utils.toWei('10', 'ether')});
+        await config.flightSuretyApp.registerAirline(spirit, "Spirit", {from: delta});
+        await config.flightSuretyApp.fundAirline({from: spirit, value: web3.utils.toWei('10', 'ether')});
 
-        await config.flightSuretyApp.register(jetblue, "JetBlue", {from: delta});
-        await config.flightSuretyApp.register(norwegian, "Norwegian Airlines", {from: delta});
-        await config.flightSuretyApp.register(alaskan, "Alaskan Airlines", {from: delta});
+        await config.flightSuretyApp.registerAirline(jetblue, "JetBlue", {from: delta});
+        await config.flightSuretyApp.registerAirline(norwegian, "Norwegian Airlines", {from: delta});
+        await config.flightSuretyApp.registerAirline(alaskan, "Alaskan Airlines", {from: delta});
 
         // Add votes to satisfy 50% and trigger registration approval for Jet Blue (6th airline)
-        await config.flightSuretyApp.vote(norwegian, {from: aa});
-        await config.flightSuretyApp.vote(norwegian, {from: united});
+        await config.flightSuretyApp.voteForAirline(norwegian, {from: aa});
+        await config.flightSuretyApp.voteForAirline(norwegian, {from: united});
     }
     catch(e) {
         console.log(e.message);
@@ -199,7 +207,7 @@ contract('Flight Surety Tests', async (accounts) => {
 
     // ACT
     try {
-        await config.flightSuretyApp.vote(british, {from: norwegian});
+        await config.flightSuretyApp.voteForAirline(british, {from: norwegian});
     }
     catch(e) {
 

@@ -23,6 +23,13 @@ export default class DOM {
     static elid(id) { 
       return document.getElementById(id);
     }
+
+    // https://stackoverflow.com/questions/3955229/remove-all-child-elements-of-a-dom-node-in-javascript
+    static clear(node) {
+        while (node.firstChild) {
+            node.removeChild(node.firstChild);
+        }
+    }
   
     static appendText(el, text) {
       const textNode = document.createTextNode(text);

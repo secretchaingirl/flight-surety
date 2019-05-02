@@ -16,26 +16,9 @@ contract FlightSuretyApp {
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
 
-    // Flight status codees
-    uint8 private constant STATUS_CODE_UNKNOWN = 0;
-    uint8 private constant STATUS_CODE_ON_TIME = 10;
-    uint8 private constant STATUS_CODE_LATE_AIRLINE = 20;
-    uint8 private constant STATUS_CODE_LATE_WEATHER = 30;
-    uint8 private constant STATUS_CODE_LATE_TECHNICAL = 40;
-    uint8 private constant STATUS_CODE_LATE_OTHER = 50;
-
     address private contractOwner;  // Account used to deploy contract
     FlightSuretyData flightSuretyData;  // this is the address of the FlightSuretyData contract
     bool private testingMode = false;   // Allows authorized callers to put the contract in testing mode
-
-    struct Flight {
-        //bool isRegistered;
-        uint8 statusCode;
-        uint256 updatedTimestamp;
-        uint8 flightNo;
-        address airline;
-    }
-    mapping(bytes32 => Flight) private flights;
  
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -165,7 +148,7 @@ contract FlightSuretyApp {
     *       funding >= 10 ether
     *
     */   
-    function fund
+    function fundAirline
                             (   
                             )
                             public
@@ -176,8 +159,7 @@ contract FlightSuretyApp {
 
         // send funds to data contract
         //  Pass msg.sender so the airline can be credited with the funds
-        //address(flightSuretyData).fund.value(msg.value)(msg.sender);
-        flightSuretyData.fund.value(msg.value)(msg.sender);
+        flightSuretyData.addFunds.value(msg.value)(msg.sender);
     }
 
 
@@ -185,7 +167,7 @@ contract FlightSuretyApp {
     * @dev Add an airline to the registration queue
     *
     */   
-    function register
+    function registerAirline
                     (
                         address account,
                         string name
@@ -197,11 +179,11 @@ contract FlightSuretyApp {
                     requireIsFunded
                     returns(bool)
     {
-        flightSuretyData.add(account, name);
+        flightSuretyData.addAirline(account, name);
 
         return(
-            this.delegatecall(
-                bytes4(keccak256("vote(address)")), 
+            address(this).delegatecall(
+                bytes4(keccak256("voteForAirline(address)")), 
                 account
             )
         );
@@ -213,7 +195,7 @@ contract FlightSuretyApp {
     *   Registered airlines submit a vote and approval is triggered when M of N is satisfied
     *
     */   
-    function vote
+    function voteForAirline
                 (
                     address account
                 )
@@ -230,13 +212,13 @@ contract FlightSuretyApp {
         uint registrations;
         uint votes;
 
-        (registrations, votes) = flightSuretyData.vote(account);
+        (registrations, votes) = flightSuretyData.addVote(account);
 
         // Approve the registration is there are less than 5 airlines currently registered
         //  OR
         // When the airline has received 50% of the vote
         if (registrations < 5 || ((votes * 2) >= registrations)) {
-            flightSuretyData.approve(account);
+            flightSuretyData.approveAirline(account);
             return(true);
         }
         return(false);
@@ -248,12 +230,21 @@ contract FlightSuretyApp {
     *
     */  
     function registerFlight
-                                (
-                                )
-                                external
-                                view
-                                requireIsFunded
+                        (
+                            string flight,
+                            string origin,
+                            string departure,
+                            string destination,
+                            string arrival
+                        )
+                        external
+                        requireIsOperational
+                        requireIsAirline
+                        requireIsRegistered
+                        requireIsFunded
+                        returns(bool)
     {
+        return(true);
     }
     
    /**
@@ -477,7 +468,7 @@ contract FlightSuretyApp {
                             payable 
                             requireIsOperational
     {
-        fund();
+        fundAirline();
     }
 }
 
@@ -490,12 +481,24 @@ contract FlightSuretyData {
     // Airline operations
     //
 
-    function isAirline(address account) external view returns(bool);
-    function isRegistered(address account) external view returns(bool);
-    function isFunded(address account) external view returns(bool);
+    function isAirline(address airline) external view returns(bool);
+    function isRegistered(address airline) external view returns(bool);
+    function isFunded(address airline) external view returns(bool);
 
-    function add(address account, string name) external;
-    function vote(address account) external returns(uint, uint);
-    function approve(address _airline) external;
-    function fund(address _airline) public payable;
+    function addAirline(address airline, string name) external;
+    function addVote(address airline) external returns(uint, uint);
+    function approveAirline(address airline) external;
+    function addFunds(address airline) public payable;
+
+    function addFlight
+                    (
+                        address _airline, 
+                        string _flight, 
+                        string _origin, 
+                        uint256 _departureTimestamp, 
+                        string _destination, 
+                        uint256 _arrivalTimestamp
+                    )
+                    external
+                    returns(bytes32);
 }

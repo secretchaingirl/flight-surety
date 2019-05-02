@@ -4,7 +4,7 @@ body {
     background-size: cover;
 }
 
-.container {
+.container {;
     margin-top: 100px;
     background-color: #000;
     opacity: 0.9;
@@ -12,8 +12,21 @@ body {
     padding: 40px;
 }
 
+.status-container {;
+    margin-top: 50px;
+    background-color: #fff;
+    opacity: 0.9;
+    color: #000;
+    padding: 20px;
+}
+
 .top-20 {
     margin-top: 20px;
+}
+
+/* https://stackoverflow.com/questions/35440928/bootstrap-3-right-align-button/35442063 */
+.pull-right {
+    float: right !important; /* Use of important emulates bootstrap */
 }
 
 h5 {
@@ -30,7 +43,7 @@ section {
 }
 
 .field-value {
-    color: #0e7fa8;
+    /* color: #0e7fa8; */
 }
 
 label.form {
@@ -39,4 +52,33 @@ label.form {
 }
 input {
     margin-right: 30px;
+    color: #000;
+}
+
+.info {
+    font-size: 14px;
+    font-style: italic;
+    margin-top: 10px;
+    color: #2c6275;
+}
+
+/* https://stackoverflow.com/questions/25923623/change-hover-color-on-a-button-with-bootstrap-customization */
+
+.btn,
+.btn-pri {
+    color: #fff;
+    background-color: #4598b6;
+    border-color: #357ebd;
+    margin-left: 20px;
+    margin-right: 5px;
+}
+
+.btn-pri:hover, 
+.btn-pri:focus, 
+.btn-pri:active, 
+.btn-pri.active,
+.btn-pri:active:focus {
+    color: #fff;
+    background-color: #2c6275;
+    border-color: #357ebd;
 }

@@ -28,6 +28,27 @@ contract FlightSuretyData {
     mapping(address => uint) private airlines;                      // Mapping for storing airlines
     mapping(address => Registration) private registrations;         // Mapping for storing status of airline registrations
 
+    // Registered flights
+    struct Flight {
+        address airline;
+        string flight;
+        string origin;
+        uint256 departureTimestamp;
+        string destination;
+        uint256 arrivalTimestamp;
+        uint8 statusCode;
+    }
+
+    mapping(bytes32 => Flight) private flights;
+
+    // Flight status codees
+    uint8 private constant STATUS_CODE_UNKNOWN = 0;
+    uint8 private constant STATUS_CODE_ON_TIME = 10;
+    uint8 private constant STATUS_CODE_LATE_AIRLINE = 20;
+    uint8 private constant STATUS_CODE_LATE_WEATHER = 30;
+    uint8 private constant STATUS_CODE_LATE_TECHNICAL = 40;
+    uint8 private constant STATUS_CODE_LATE_OTHER = 50;
+
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
     /********************************************************************************************/
@@ -62,6 +83,7 @@ contract FlightSuretyData {
         _;
     }
 
+
     /**
     * @dev Modifier that requires the "ContractOwner" account to be the function caller
     */
@@ -70,6 +92,7 @@ contract FlightSuretyData {
         require(msg.sender == contractOwner, "Caller is not contract owner");
         _;
     }
+
 
     /**
     * @dev Modifier that requires the function caller to be authorized
@@ -97,6 +120,7 @@ contract FlightSuretyData {
         return operational;
     }
 
+
     /**
     * @dev Sets contract operations on/off
     *
@@ -112,6 +136,7 @@ contract FlightSuretyData {
         operational = mode;
     }
 
+
     function authorizeCaller
                             (
                                 address contractAddress
@@ -124,6 +149,7 @@ contract FlightSuretyData {
         authorizedContracts[contractAddress] = true;
     }
 
+
     function deauthorizeCaller
                             (
                                 address contractAddress
@@ -135,6 +161,7 @@ contract FlightSuretyData {
         require(authorizedContracts[contractAddress] == true, "Caller has not been authorized.");
         delete authorizedContracts[contractAddress];
     }
+
 
     function getBalance
                         (
@@ -166,6 +193,7 @@ contract FlightSuretyData {
         return (airlines[_airline] > 0) ? true : false;
     }
 
+
     /**
      * @dev Determines if Airline is registered
      */
@@ -181,6 +209,7 @@ contract FlightSuretyData {
         require(_airline != address(0), "must be a valid address.");
         return registrations[_airline].registered;
     }
+
 
     /**
      * @dev Determines if Airline is funded
@@ -198,6 +227,7 @@ contract FlightSuretyData {
         return registrations[_airline].funded;
     }
 
+
     /**
      * @dev Get the number of currently registered airlines
      */
@@ -211,6 +241,7 @@ contract FlightSuretyData {
     {
         return registeredAirlines;
     }
+
 
     /**
      * @dev Get the number of currently registered airlines
@@ -227,12 +258,13 @@ contract FlightSuretyData {
         return registrations[_airline].votes;
     }
 
+
    /**
     * @dev Add an airline to the registration queue
     *      Can only be called from FlightSuretyApp contract
     *
     */   
-    function add
+    function addAirline
                             (
                                 address _airline,
                                 string _name
@@ -253,13 +285,14 @@ contract FlightSuretyData {
         });
     }
 
+
    /**
-    * @dev vote on pending airline registration
+    * @dev add vote forn airline registration
     *   Returns the # of registrations in the contract
     *   and the # of votes this airline has received
     *
     */   
-    function vote
+    function addVote
                     (
                         address _airline
                     )
@@ -280,12 +313,13 @@ contract FlightSuretyData {
         return(registeredAirlines, registrations[_airline].votes);
     }
 
+
     /**
     * @dev approve airline registration
     *   Marks the airline as 'registered' and increments the total number of registered airlines for the contract
     *
     */   
-    function approve
+    function approveAirline
                     (
                         address _airline
                     )
@@ -299,12 +333,13 @@ contract FlightSuretyData {
         registeredAirlines++;
     }
 
+
     /**
     * @dev Initial funding for the insurance. Unless there are too many delayed flights
     *      resulting in insurance payouts, the contract should be self-sustaining
     *
     */   
-    function fund
+    function addFunds
                             (  
                                 address _airline 
                             )
@@ -319,11 +354,105 @@ contract FlightSuretyData {
         registrations[_airline].funded = true;
     }
 
+
+    /**
+    * @dev Add a flight to the Flight mappings
+    *      Can only be called from FlightSuretyApp contract
+    *
+    */   
+    function addFlight
+                            (
+                                address _airline,
+                                string _flight,
+                                string _origin,
+                                uint256 _departureTimestamp,
+                                string _destination,
+                                uint256 _arrivalTimestamp
+                            )
+                            external
+                            isAuthorized
+                            returns(bytes32)
+    {
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline] > 0, "airline not found.");
+
+        bytes32 flightKey = getFlightKey(_airline, _flight, _departureTimestamp, _arrivalTimestamp);
+
+        flights[flightKey] = Flight({
+            airline: _airline,
+            flight: _flight,
+            origin: _origin,
+            departureTimestamp: _departureTimestamp,
+            destination: _destination,
+            arrivalTimestamp: _arrivalTimestamp,
+            statusCode: STATUS_CODE_UNKNOWN
+        });
+
+        return flightKey;
+    }
+
+
+    /**
+    * @dev Add a flight to the Flight mappings
+    *      Can only be called from FlightSuretyApp contract
+    *
+    */   
+    function addFlight
+                            (
+                                address _airline,
+                                string _flight,
+                                string _origin,
+                                uint256 _departureTimestamp,
+                                string _destination,
+                                uint256 _arrivalTimestamp
+                            )
+                            external
+                            isAuthorized
+                            returns(bytes32)
+    {
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline] > 0, "airline not found.");
+
+        bytes32 flightKey = getFlightKey(_airline, _flight, _departureTimestamp, _arrivalTimestamp);
+
+        flights[flightKey] = Flight({
+            airline: _airline,
+            flight: _flight,
+            origin: _origin,
+            departureTimestamp: _departureTimestamp,
+            destination: _destination,
+            arrivalTimestamp: _arrivalTimestamp,
+            statusCode: STATUS_CODE_UNKNOWN
+        });
+
+        return flightKey;
+    }
+
+
+    /**
+    * @dev Make a unique key for the flight, which is used to look it up in the mapping
+    *
+    */
+    function getFlightKey
+                        (
+                            address _airline,
+                            string memory _flight,
+                            uint256 _departureTimestamp,
+                            uint256 _arrivalTimestamp
+                        )
+                        pure
+                        internal
+                        returns(bytes32) 
+    {
+        return keccak256(abi.encodePacked(_airline, _flight, _departureTimestamp, _arrivalTimestamp));
+    }
+
+
    /**
     * @dev Buy insurance for a flight
     *
     */   
-    function buy
+    function buyFlightInsurance
                             (                             
                             )
                             external
@@ -332,10 +461,11 @@ contract FlightSuretyData {
 
     }
 
+
     /**
      *  @dev Credits payouts to insurees
     */
-    function creditInsurees
+    function creditFlightInsurees
                                 (
                                 )
                                 external
@@ -348,7 +478,7 @@ contract FlightSuretyData {
      *  @dev Transfers eligible payout funds to insuree
      *
     */
-    function pay
+    function payFlightInsuree
                             (
                             )
                             external
@@ -356,18 +486,6 @@ contract FlightSuretyData {
     {
     }
 
-    function getFlightKey
-                        (
-                            address _airline,
-                            string memory _flight,
-                            uint256 _timestamp
-                        )
-                        pure
-                        internal
-                        returns(bytes32) 
-    {
-        return keccak256(abi.encodePacked(_airline, _flight, _timestamp));
-    }
 
     /**
     * @dev Fallback function for funding smart contract.
