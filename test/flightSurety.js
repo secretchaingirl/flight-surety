@@ -15,6 +15,7 @@ contract('Flight Surety Tests', async (accounts) => {
   let norwegian = accounts[6];
   let alaskan = accounts[7];
   let british = accounts[8];
+  let unregistered = accounts[9];
 
   before('setup contract', async () => {
     config = await Test.Config(accounts);
@@ -227,6 +228,40 @@ contract('Flight Surety Tests', async (accounts) => {
 
   });
 
+  it('(flights) non-registered airline cannot register a flight', async () => {
+    // ARRANGE
+    let success = false;
+
+    let payload = {
+        flight: 'UNKNOWN',
+        origin: 'UNK',
+        departure: Math.floor(Date.now() / 1000),
+        destination: 'UNK',
+        arrival: Math.floor(Date.now() / 1000)
+    }
+
+    // ACT
+    try {
+        let tx = await config.flightSuretyApp.registerFlight
+                                                            (
+                                                                payload.flight,
+                                                                payload.origin,
+                                                                payload.departure,
+                                                                payload.destination,
+                                                                payload.arrival,
+                                                                { from: unregistered, gas: 5000000}
+                                                            );
+
+        success = true;
+    } catch {
+
+    } finally {
+        // ASSERT
+        assert.equal(success, false, "Unregistered flight was able to add a flight.");
+    }
+
+  });
+
   it('(flights) can register a flight for the airline', async () => {
 
     // ARRANGE
@@ -271,7 +306,16 @@ contract('Flight Surety Tests', async (accounts) => {
 
     // ASSERT
     assert(isFlight, "Delta flight should have been registered.");
-    // TODO: assert flightInfo data
+    
+    // Check all flight info data
+    assert.equal(flightInfo.nonce, flightNonce, "Flight Nonce should be 1.");
+    assert.equal(flightInfo.key, flightKey, "Flight Key should match.");
+    assert.equal(flightInfo.flight, payload.flight, "Flight # shoudl match.");
+    assert.equal(flightInfo.origin, payload.origin, "Flight Origin should match.");
+    assert.equal(flightInfo.departureTimestamp, payload.departure, "Flight Departure time should match.");
+    assert.equal(flightInfo.destination, payload.destination, "Flight Destination should match.");
+    assert.equal(flightInfo.arrivalTimestamp, payload.arrival, "Flight Arrival time should match.");
+    assert.equal(flightInfo.statusCode, 0, "Flight status code should be Unknown (0)");
   });
 
 });
