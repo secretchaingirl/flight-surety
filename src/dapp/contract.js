@@ -70,9 +70,9 @@ export default class Contract {
             airline: airline,
             flight: flight,
             origin: origin,
-            departure: departure,
+            departure: (new Date(departure).getTime()/1000),
             destination: destination,
-            arrival: arrival
+            arrival: (new Date(arrival).getTime()/1000)
         }
 
         self.flightSuretyApp.methods

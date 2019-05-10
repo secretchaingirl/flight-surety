@@ -67,3 +67,5 @@ typings/
 .env
 
 ~$*.pptx
+
+.DS_store

@@ -1,4 +1,8 @@
-pragma solidity ^0.4.25;
+pragma solidity ^0.5.8;
+
+// To enable ability to return Flight struct in memory
+// TODO: DO NOT use in production deployment
+pragma experimental ABIEncoderV2;
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
 
@@ -10,27 +14,18 @@ contract FlightSuretyData {
     /********************************************************************************************/
 
     address private contractOwner;                              // Account used to deploy contract
-    uint balance;                                               // Records the contract balance
     bool private operational = true;                            // Blocks all state changes throughout the contract if false
-    uint private nonce = 1;                                     // Airline nonce
+
+    uint balance;                                               // Records the contract balance
 
     uint private registeredAirlines = 0;                        // Number of airlines registered with the contract
+    uint private airlineNonce = 1;                              // Starting airline nonce
 
     mapping(address => bool) private authorizedContracts;       // Mapping for contracts authorized to call data contract
 
-    struct Registration {
-        string name;
-        bool registered;
-        bool funded; 
-        uint votes;   
-    }
-
-    mapping(address => uint) private airlines;                      // Mapping for storing airlines
-    mapping(address => Registration) private registrations;         // Mapping for storing status of airline registrations
-
-    // Registered flights
     struct Flight {
-        address airline;
+        uint nonce;
+        bytes32 key;
         string flight;
         string origin;
         uint256 departureTimestamp;
@@ -39,7 +34,17 @@ contract FlightSuretyData {
         uint8 statusCode;
     }
 
-    mapping(bytes32 => Flight) private flights;
+    struct Airline {
+        uint nonce;                                             // Airline nonce or unique #
+        string name;
+        bool registered;
+        bool funded;
+        uint votes;
+        uint flightNonce;                                       // to keep track of current # of registered flights for the Airline
+        mapping(uint => Flight) flights;
+    }
+
+    mapping(address => Airline) private airlines;
 
     // Flight status codees
     uint8 private constant STATUS_CODE_UNKNOWN = 0;
@@ -59,8 +64,8 @@ contract FlightSuretyData {
     */
     constructor
                                 (
-                                ) 
-                                public 
+                                )
+                                public
     {
         contractOwner = msg.sender;
     }
@@ -74,10 +79,10 @@ contract FlightSuretyData {
 
     /**
     * @dev Modifier that requires the "operational" boolean variable to be "true"
-    *      This is used on all state changing functions to pause the contract in 
+    *      This is used on all state changing functions to pause the contract in
     *      the event there is an issue that needs to be fixed
     */
-    modifier requireIsOperational() 
+    modifier requireIsOperational()
     {
         require(operational, "Contract is not operational");
         _;
@@ -111,11 +116,11 @@ contract FlightSuretyData {
     * @dev Get operating status of contract
     *
     * @return A bool that is the current operating status
-    */      
-    function isOperational() 
-                            public 
-                            view 
-                            returns(bool) 
+    */
+    function isOperational()
+                            public
+                            view
+                            returns(bool)
     {
         return operational;
     }
@@ -125,13 +130,13 @@ contract FlightSuretyData {
     * @dev Sets contract operations on/off
     *
     * When operational mode is disabled, all write transactions except for this one will fail
-    */    
+    */
     function setOperatingStatus
                             (
                                 bool mode
-                            ) 
+                            )
                             external
-                            requireContractOwner 
+                            requireContractOwner
     {
         operational = mode;
     }
@@ -185,12 +190,12 @@ contract FlightSuretyData {
                             address _airline
                         )
                         external
-                        view 
-                        isAuthorized 
+                        view
+                        isAuthorized
                         returns(bool)
     {
         require(_airline != address(0), "must be a valid address.");
-        return (airlines[_airline] > 0) ? true : false;
+        return (airlines[_airline].nonce > 0) ? true : false;
     }
 
 
@@ -202,12 +207,12 @@ contract FlightSuretyData {
                             address _airline
                         )
                         external
-                        view 
-                        isAuthorized 
+                        view
+                        isAuthorized
                         returns(bool)
     {
         require(_airline != address(0), "must be a valid address.");
-        return registrations[_airline].registered;
+        return airlines[_airline].registered;
     }
 
 
@@ -219,12 +224,41 @@ contract FlightSuretyData {
                             address _airline
                         )
                         external
-                        view 
-                        isAuthorized 
+                        view
+                        isAuthorized
                         returns(bool)
     {
         require(_airline != address(0), "must be a valid address.");
-        return registrations[_airline].funded;
+        require(airlines[_airline].nonce > 0, "airline not found.");
+
+        return airlines[_airline].funded;
+    }
+
+
+    /**
+     * @dev Determines if Flight has been registered to Airline
+     */
+    function isFlight
+                        (
+                            address _airline,
+                            bytes32 _flightKey
+                        )
+                        external
+                        view
+                        isAuthorized
+                        returns(bool)
+    {
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
+
+        for (uint8 i = 0; i < airlines[_airline].flightNonce; i++) {
+            // Go through flights and find one that matches the key, if it exists
+            if (airlines[_airline].flights[i].nonce > 0 && airlines[_airline].flights[i].key == _flightKey) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 
@@ -235,8 +269,8 @@ contract FlightSuretyData {
                         (
                         )
                         external
-                        view 
-                        isAuthorized 
+                        view
+                        isAuthorized
                         returns(uint)
     {
         return registeredAirlines;
@@ -251,11 +285,11 @@ contract FlightSuretyData {
                             address _airline
                         )
                         external
-                        view 
-                        isAuthorized 
+                        view
+                        isAuthorized
                         returns(uint)
     {
-        return registrations[_airline].votes;
+        return airlines[_airline].votes;
     }
 
 
@@ -263,26 +297,26 @@ contract FlightSuretyData {
     * @dev Add an airline to the registration queue
     *      Can only be called from FlightSuretyApp contract
     *
-    */   
+    */
     function addAirline
                             (
                                 address _airline,
-                                string _name
+                                string calldata _name
                             )
                             external
                             isAuthorized
     {
         require(_airline != address(0), "must be a valid address.");
-        require(airlines[_airline] == 0, "airline already added.");
+        require(airlines[_airline].nonce == 0, "airline already added.");
 
-        airlines[_airline] = nonce++;
-
-        registrations[_airline] = Registration({
-            registered: false,
-            funded: false,
-            name: _name,
-            votes: 0
-        });
+        airlines[_airline] = Airline({
+                                nonce: airlineNonce++,
+                                name: _name,
+                                registered: false,
+                                funded: false,
+                                votes: 0,
+                                flightNonce: 0
+                            });
     }
 
 
@@ -291,7 +325,7 @@ contract FlightSuretyData {
     *   Returns the # of registrations in the contract
     *   and the # of votes this airline has received
     *
-    */   
+    */
     function addVote
                     (
                         address _airline
@@ -300,17 +334,17 @@ contract FlightSuretyData {
                     isAuthorized
                     returns
                     (
-                        uint, 
+                        uint,
                         uint
                     )
     {
         require(_airline != address(0), "must be a valid address.");
-        require(airlines[_airline] > 0, "airline not found.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
 
-        registrations[_airline].votes++;
+        airlines[_airline].votes++;
 
         // # of registered airlines and # of votes for this airline
-        return(registeredAirlines, registrations[_airline].votes);
+        return(registeredAirlines, airlines[_airline].votes);
     }
 
 
@@ -318,7 +352,7 @@ contract FlightSuretyData {
     * @dev approve airline registration
     *   Marks the airline as 'registered' and increments the total number of registered airlines for the contract
     *
-    */   
+    */
     function approveAirline
                     (
                         address _airline
@@ -327,9 +361,9 @@ contract FlightSuretyData {
                     isAuthorized
     {
         require(_airline != address(0), "must be a valid address.");
-        require(airlines[_airline] > 0, "airline not found.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
 
-        registrations[_airline].registered = true;
+        airlines[_airline].registered = true;
         registeredAirlines++;
     }
 
@@ -338,20 +372,20 @@ contract FlightSuretyData {
     * @dev Initial funding for the insurance. Unless there are too many delayed flights
     *      resulting in insurance payouts, the contract should be self-sustaining
     *
-    */   
+    */
     function addFunds
-                            (  
-                                address _airline 
+                            (
+                                address _airline
                             )
                             public
                             payable
                             isAuthorized
     {
         require(_airline != address(0), "must be a valid address.");
-        require(airlines[_airline] > 0, "airline not found.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
 
         balance += msg.value;
-        registrations[_airline].funded = true;
+        airlines[_airline].funded = true;
     }
 
 
@@ -359,73 +393,37 @@ contract FlightSuretyData {
     * @dev Add a flight to the Flight mappings
     *      Can only be called from FlightSuretyApp contract
     *
-    */   
+    */
     function addFlight
                             (
                                 address _airline,
-                                string _flight,
-                                string _origin,
+                                string calldata _flight,
+                                string calldata _origin,
                                 uint256 _departureTimestamp,
-                                string _destination,
+                                string calldata _destination,
                                 uint256 _arrivalTimestamp
                             )
                             external
                             isAuthorized
-                            returns(bytes32)
+                            returns(uint flightNonce)
     {
         require(_airline != address(0), "must be a valid address.");
-        require(airlines[_airline] > 0, "airline not found.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
 
         bytes32 flightKey = getFlightKey(_airline, _flight, _departureTimestamp, _arrivalTimestamp);
 
-        flights[flightKey] = Flight({
-            airline: _airline,
-            flight: _flight,
-            origin: _origin,
-            departureTimestamp: _departureTimestamp,
-            destination: _destination,
-            arrivalTimestamp: _arrivalTimestamp,
-            statusCode: STATUS_CODE_UNKNOWN
-        });
+        flightNonce = ++airlines[_airline].flightNonce;
 
-        return flightKey;
-    }
-
-
-    /**
-    * @dev Add a flight to the Flight mappings
-    *      Can only be called from FlightSuretyApp contract
-    *
-    */   
-    function addFlight
-                            (
-                                address _airline,
-                                string _flight,
-                                string _origin,
-                                uint256 _departureTimestamp,
-                                string _destination,
-                                uint256 _arrivalTimestamp
-                            )
-                            external
-                            isAuthorized
-                            returns(bytes32)
-    {
-        require(_airline != address(0), "must be a valid address.");
-        require(airlines[_airline] > 0, "airline not found.");
-
-        bytes32 flightKey = getFlightKey(_airline, _flight, _departureTimestamp, _arrivalTimestamp);
-
-        flights[flightKey] = Flight({
-            airline: _airline,
-            flight: _flight,
-            origin: _origin,
-            departureTimestamp: _departureTimestamp,
-            destination: _destination,
-            arrivalTimestamp: _arrivalTimestamp,
-            statusCode: STATUS_CODE_UNKNOWN
-        });
-
-        return flightKey;
+        airlines[_airline].flights[flightNonce - 1] = Flight({
+                                                    nonce: flightNonce,
+                                                    key: flightKey,
+                                                    flight: _flight,
+                                                    origin: _origin,
+                                                    departureTimestamp: _departureTimestamp,
+                                                    destination: _destination,
+                                                    arrivalTimestamp: _arrivalTimestamp,
+                                                    statusCode: STATUS_CODE_UNKNOWN
+                                                });
     }
 
 
@@ -440,20 +438,86 @@ contract FlightSuretyData {
                             uint256 _departureTimestamp,
                             uint256 _arrivalTimestamp
                         )
-                        pure
                         internal
-                        returns(bytes32) 
+                        pure
+                        returns(bytes32)
     {
+        require(_airline != address(0), "must be a valid address.");
+
         return keccak256(abi.encodePacked(_airline, _flight, _departureTimestamp, _arrivalTimestamp));
+    }
+
+
+    /**
+    * @dev Return 1st Airline flight
+    *
+    */
+    function getFlight
+                        (
+                            address _airline,
+                            uint _flightNonce
+                        )
+                        external
+                        view
+                        isAuthorized
+                        returns(Flight memory flightInfo)
+    {
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
+        require(_flightNonce > 0, "flights start at 1.");
+        require(_flightNonce <= airlines[_airline].flightNonce, "flight nonce out of bounds.");
+        require(airlines[_airline].flights[_flightNonce - 1].nonce > 0, "flight not found.");
+
+        return airlines[_airline].flights[_flightNonce - 1];
+    }
+
+    /**
+    * @dev Get # of flights for Airline
+    *
+    */
+    function getFlightCount
+                        (
+                            address _airline
+                        )
+                        external
+                        view
+                        isAuthorized
+                        returns(uint)
+    {
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
+
+        return airlines[_airline].flightNonce;
+    }
+
+    /**
+    * @dev Return 1st five Airline flights
+    *
+    */
+    function getFlights
+                        (
+                            address _airline
+                        )
+                        external
+                        view
+                        isAuthorized
+                        returns(Flight[] memory flightList)
+    {
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
+
+        for (uint8 i = 0; i < 5 && i < airlines[_airline].flightNonce; i++) {
+            flightList[i] = airlines[_airline].flights[i];
+        }
     }
 
 
    /**
     * @dev Buy insurance for a flight
     *
-    */   
+    */
     function buyFlightInsurance
-                            (                             
+                            (
                             )
                             external
                             payable
@@ -496,9 +560,9 @@ contract FlightSuretyData {
     *   NOTE: the fallback function could be used by the contract owner to setup intial
     *   funding of the FlightSurety insurance program.
     */
-    function() 
-                            external 
-                            payable 
+    function()
+                            external
+                            payable
                             requireContractOwner
                             requireIsOperational
     {

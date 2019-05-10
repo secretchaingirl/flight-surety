@@ -1,5 +1,6 @@
 
 var Test = require('../config/testConfig.js');
+const truffleAssert = require('truffle-assertions');
 var BigNumber = require('bignumber.js');
 
 contract('Flight Surety Tests', async (accounts) => {
@@ -90,8 +91,8 @@ contract('Flight Surety Tests', async (accounts) => {
 
   it('(airline) 1st airline was registered when contract was deployed', async () => {
 
-      // ARRANGE
-      let registered = false;
+    // ARRANGE
+    let registered = false;
     // ACT
     try {
         registered = await config.flightSuretyData.isAirline.call(delta, {from: config.flightSuretyApp.address});
@@ -224,6 +225,53 @@ contract('Flight Surety Tests', async (accounts) => {
             "Airline should not be able to vote for an airline if it hasn't provided funding"
         );
 
+  });
+
+  it('(flights) can register a flight for the airline', async () => {
+
+    // ARRANGE
+    var flightKey;
+    var flightNonce;
+
+    let payload = {
+        flight: 'DL3893',
+        origin: 'GRR',
+        departure: Math.floor(Date.now() / 1000),
+        destination: 'MLE',
+        arrival: Math.floor(Date.now() / 1000)
+    }
+
+    // ACT
+    try {
+        let tx = await config.flightSuretyApp.registerFlight
+                                                            (
+                                                                payload.flight,
+                                                                payload.origin,
+                                                                payload.departure,
+                                                                payload.destination,
+                                                                payload.arrival,
+                                                                { from: delta, gas: 5000000}
+                                                            );
+
+        // Wait for the event
+        truffleAssert.eventEmitted(tx, 'FlightRegistered', ev => {
+            flightNonce = ev.nonce;
+            flightKey = ev.key;
+
+            return flightNonce === 1;
+
+        }, 'Flight registration event not emitted.');
+    }
+    catch(e) {
+
+    }
+
+    let isFlight = await config.flightSuretyData.isFlight.call(delta, flightKey, {from: config.flightSuretyApp.address});
+    let flightInfo = await config.flightSuretyData.getFlight.call(delta, flightNonce, {from: config.flightSuretyApp.address});
+
+    // ASSERT
+    assert(isFlight, "Delta flight should have been registered.");
+    // TODO: assert flightInfo data
   });
 
 });
