@@ -536,5 +536,6 @@ contract FlightSuretyData is FlightSuretyBase {
                     returns(uint flightNonce);
 
     function getFlight(address airline, uint flightNonce) external returns(Flight memory flightInfo);
+    function getFlights(address _airline) external view returns(Flight[] memory flightList);
 }
 

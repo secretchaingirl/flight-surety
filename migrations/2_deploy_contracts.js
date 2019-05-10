@@ -28,7 +28,7 @@ module.exports = async function(deployer, network, accounts) {
                     return FlightSuretyData.deployed()
                         .then(async (dataInstance) => {
                             await dataInstance.authorizeCaller(FlightSuretyApp.address);
-                            console.log('FlightSuretyApp contract address authorized as caller of FlightSuretyData contract');
+                            console.log('FlightSuretyApp contract address authorized as caller of FlightSuretyData contract\n');
 
                             // Finish contract setup by bootstrapping:
                             //  - add 1st airline
@@ -37,7 +37,7 @@ module.exports = async function(deployer, network, accounts) {
                             await dataInstance.addAirline(delta, "Delta Airlines");
                             await dataInstance.addVote(delta);
                             await dataInstance.approveAirline(delta);
-                            console.log('Initial airline registered and funded(Delta)');
+                            console.log('Initial airline registered and funded (Delta)\n');
 
                             await dataInstance.addFlight(
                                                             delta,
@@ -75,11 +75,26 @@ module.exports = async function(deployer, network, accounts) {
                                                             (Date.parse("2019-06-03T07:00")/1000)
                                                         );
 
+                            await dataInstance.addFlight(
+                                                            delta,
+                                                            "DL2023",
+                                                            "GRR",
+                                                            (Date.parse("2019-06-02T06:00")/1000),
+                                                            "MLE",
+                                                            (Date.parse("2019-06-03T07:00")/1000)
+                                                        );
+
+                            let flightInfos = await dataInstance.getFlights.call(delta, 1, {from: FlightSuretyApp.address});
+                            console.log('Initial airline flights registered (Delta)');
+                            console.log('-----------------------------------');
+                            console.log(JSON.stringify(flightInfos));
+                            console.log('-----------------------------------\n');
+
                             // Get App contract instance and submit funding for 1st airline
                             return FlightSuretyApp.deployed()
                                 .then(async (appInstance) => {
                                     await appInstance.fundAirline({from: delta, value: web3.utils.toWei('10', 'ether')});
-                                    console.log('Initial airline funded with 10 ether');
+                                    console.log('Initial airline funded with 10 ether (Delta)');
                                 });
                         });
                 });
