@@ -5,8 +5,9 @@ pragma solidity ^0.5.8;
 pragma experimental ABIEncoderV2;
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "./FlightSuretyBase.sol";
 
-contract FlightSuretyData {
+contract FlightSuretyData is FlightSuretyBase {
     using SafeMath for uint256;
 
     /********************************************************************************************/
@@ -22,17 +23,6 @@ contract FlightSuretyData {
     uint private airlineNonce = 1;                              // Starting airline nonce
 
     mapping(address => bool) private authorizedContracts;       // Mapping for contracts authorized to call data contract
-
-    struct Flight {
-        uint nonce;
-        bytes32 key;
-        string flight;
-        string origin;
-        uint256 departureTimestamp;
-        string destination;
-        uint256 arrivalTimestamp;
-        uint8 statusCode;
-    }
 
     struct Airline {
         uint nonce;                                             // Airline nonce or unique #

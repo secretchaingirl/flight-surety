@@ -8,11 +8,12 @@ pragma experimental ABIEncoderV2;
 // More info: https://www.nccgroup.trust/us/about-us/newsroom-and-events/blog/2018/november/smart-contract-insecurity-bad-arithmetic/
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "./FlightSuretyBase.sol";
 
 /************************************************** */
 /* FlightSurety Smart Contract                      */
 /************************************************** */
-contract FlightSuretyApp {
+contract FlightSuretyApp is FlightSuretyBase {
     using SafeMath for uint256; // Allow SafeMath functions to be called for all uint256 types (similar to "prototype" in Javascript)
 
     /********************************************************************************************/
@@ -268,7 +269,7 @@ contract FlightSuretyApp {
                                     arrival
                                 );
 
-        FlightSuretyData.Flight memory flightInfo = flightSuretyData.getFlight(_airline, flightNonce);
+        Flight memory flightInfo = flightSuretyData.getFlight(_airline, flightNonce);
 
         emit FlightRegistered(_airline, flightInfo.nonce, flightInfo.key);
     }
@@ -505,18 +506,7 @@ contract FlightSuretyApp {
 
 // Define the data contract interface
 
-contract FlightSuretyData {
-
-    struct Flight {
-        uint nonce;
-        bytes32 key;
-        string flight;
-        string origin;
-        uint256 departureTimestamp;
-        string destination;
-        uint256 arrivalTimestamp;
-        uint8 statusCode;
-    }
+contract FlightSuretyData is FlightSuretyBase {
 
     function isOperational() public view returns(bool);
 
