@@ -43,7 +43,7 @@ contract FlightSuretyData is FlightSuretyBase {
     mapping(address => mapping(bytes32 => FlightInsurance)) private passengers;
 
     // Mapping that enables crediting insurees by flight
-    mapping(bytes32 => address) private insurees;
+    mapping(bytes32 => address[]) private insurees;
 
     // Flight status codees
     uint8 private constant STATUS_CODE_UNKNOWN = 0;
@@ -323,7 +323,7 @@ contract FlightSuretyData is FlightSuretyBase {
 
 
    /**
-    * @dev add vote forn airline registration
+    * @dev add vote for an airline registration
     *   Returns the # of registrations in the contract
     *   and the # of votes this airline has received
     *
@@ -533,7 +533,13 @@ contract FlightSuretyData is FlightSuretyBase {
                             payable
                             isAuthorized
     {
+        require(_airline != address(0), "must be a valid airline address.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
+        require(_passenger != address(0), "passenger account must be a valid address");
 
+        balance += msg.value;
+
+        
     }
 
 

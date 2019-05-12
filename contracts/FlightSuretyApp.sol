@@ -334,10 +334,10 @@ contract FlightSuretyApp is FlightSuretyBase {
         require(msg.value == _amount, "Not enough funds to purchase insurance amount requested.");
         require(msg.value <= 1 ether, "Maximum allow insurance amount is 1 ether.");
 
+        // Pass msg.sender so the passenger can be credited with the insurance purchase and added to the insurees
         address passenger = msg.sender;
 
         // send funds to data contract
-        //  Pass msg.sender so the passenger can be credited with the insurance purchase and added to the insurees
         flightSuretyData.buyFlightInsurance.value(_amount)(passenger, _airline, _flightKey);
 
         emit FlightInsurancePurchased(passenger, _airline, _flightKey, _amount);
