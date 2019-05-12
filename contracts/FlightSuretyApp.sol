@@ -28,11 +28,20 @@ contract FlightSuretyApp is FlightSuretyBase {
     /*                                       EVENTS                                             */
     /********************************************************************************************/
 
-    event FlightRegistered (
-        address airline,
-        uint nonce,
-        bytes32 key
-    );
+    event FlightRegistered
+                        (
+                            address airline,
+                            uint nonce,
+                            bytes32 key
+                        );
+
+    event FlightInsurancePurchased
+                                (
+                                    address passenger,
+                                    address airline,
+                                    bytes32 flightKey,
+                                    uint amount
+                                );
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -163,17 +172,22 @@ contract FlightSuretyApp is FlightSuretyBase {
     *
     */
     function fundAirline
-                            (
-                            )
-                            public
-                            payable
-                            requireIsAirline
+                    (
+                        uint fundAmount
+                    )
+                    public
+                    payable
+                    requireIsOperational
+                    requireIsAirline
     {
         require(msg.value >= 10 ether, "Funding requires at least 10 ether.");
+        require(msg.value == fundAmount, "Funding amount must match transaction value.");
+
+        address airline = msg.sender;
 
         // send funds to data contract
         //  Pass msg.sender so the airline can be credited with the funds
-        flightSuretyData.addFunds.value(msg.value)(msg.sender);
+        flightSuretyData.addFunds.value(msg.value)(airline);
     }
 
 
@@ -258,8 +272,9 @@ contract FlightSuretyApp is FlightSuretyBase {
     {
         address _airline = msg.sender;
         uint flightNonce;
+        bytes32 flightKey;
 
-        flightNonce = flightSuretyData.addFlight
+        (flightNonce, flightKey) = flightSuretyData.addFlight
                                 (
                                     _airline,
                                     flight,
@@ -269,9 +284,63 @@ contract FlightSuretyApp is FlightSuretyBase {
                                     arrival
                                 );
 
-        Flight memory flightInfo = flightSuretyData.getFlight(_airline, flightNonce);
+        emit FlightRegistered(_airline, flightNonce, flightKey);
+    }
 
-        emit FlightRegistered(_airline, flightInfo.nonce, flightInfo.key);
+    /**
+    * @dev Get registered Flights (only returns the 1st five).
+    *
+    * TODO: modify to use startIndex and count, up to 20 at a time for paging in a dApp
+    *
+    */
+    function getFlightInfos
+                        (
+                            address _airline
+                        )
+                        external
+                        view
+                        requireIsOperational
+                        returns(Flight[] memory)
+    {
+        require(flightSuretyData.isAirline(_airline), "Address is not a valid Airline.");
+        require(flightSuretyData.isRegistered(_airline), "Airline is not registered.");
+
+        return flightSuretyData.getFlights(_airline);
+    }
+
+
+    /**
+    * @dev Allows calling Passenger to purchase flight insurance.
+    *   This method implements a business rule:
+    *       insurance <= 1 ether
+    *
+    */
+    function buyFlightInsurance
+                            (
+                                address _airline,
+                                bytes32 _flightKey,
+                                uint _amount
+                            )
+                            public
+                            payable
+                            requireIsOperational
+    {
+        require(flightSuretyData.isAirline(_airline), "Address is not a valid Airline.");
+        require(flightSuretyData.isRegistered(_airline), "Airline is not registered.");
+        require(flightSuretyData.isFunded(_airline), "Airline exists, but is not funded and cannot participate.");
+        require(flightSuretyData.isFlight(_airline, _flightKey), "Flight does not exist.");
+        // TODO: verify that passenger has purchased the Flight (tbd)
+        // TODO: make sure Flight departure time is in the future (tbd)
+        require(msg.value == _amount, "Not enough funds to purchase insurance amount requested.");
+        require(msg.value <= 1 ether, "Maximum allow insurance amount is 1 ether.");
+
+        address passenger = msg.sender;
+
+        // send funds to data contract
+        //  Pass msg.sender so the passenger can be credited with the insurance purchase and added to the insurees
+        flightSuretyData.buyFlightInsurance.value(_amount)(passenger, _airline, _flightKey);
+
+        emit FlightInsurancePurchased(passenger, _airline, _flightKey, _amount);
     }
 
    /**
@@ -287,6 +356,7 @@ contract FlightSuretyApp is FlightSuretyBase {
                                 )
                                 internal
                                 view
+                                requireIsOperational
                                 requireIsFunded
     {
     }
@@ -300,6 +370,7 @@ contract FlightSuretyApp is FlightSuretyBase {
                             uint256 timestamp
                         )
                         external
+                        requireIsOperational
                         requireIsFunded
     {
         uint8 index = getRandomIndex(msg.sender);
@@ -430,20 +501,6 @@ contract FlightSuretyApp is FlightSuretyBase {
     }
 
 
-    function getFlightKey
-                        (
-                            address airline,
-                            string memory flight,
-                            uint256 timestamp
-                        )
-                        internal
-                        pure
-                        returns(bytes32)
-    {
-        return keccak256(abi.encodePacked(airline, flight, timestamp));
-    }
-
-
     // Returns array of three non-duplicating integers from 0-9
     function generateIndexes
                             (
@@ -500,7 +557,7 @@ contract FlightSuretyApp is FlightSuretyBase {
                             payable
                             requireIsOperational
     {
-        fundAirline();
+        fundAirline(10 ether);
     }
 }
 
@@ -523,6 +580,21 @@ contract FlightSuretyData is FlightSuretyBase {
     function approveAirline(address airline) external;
     function addFunds(address airline) public payable;
 
+    //
+    // Flight operations
+    //
+
+    function createFlightKey
+                        (
+                            address _airline,
+                            string calldata _flight,
+                            uint256 _departureTimestamp,
+                            uint256 _arrivalTimestamp
+                        )
+                        external
+                        view
+                        returns(bytes32);
+
     function addFlight
                     (
                         address _airline,
@@ -533,9 +605,19 @@ contract FlightSuretyData is FlightSuretyBase {
                         uint256 _arrivalTimestamp
                     )
                     external
-                    returns(uint flightNonce);
+                    returns(uint flightNonce, bytes32 flightKey);
 
+    function isFlight(address _airline, bytes32 _flightKey) external returns(bool);
     function getFlight(address airline, uint flightNonce) external returns(Flight memory flightInfo);
     function getFlights(address _airline) external view returns(Flight[] memory flightList);
+
+    function buyFlightInsurance
+                            (
+                                address _passenger,
+                                address _airline,
+                                bytes32 _flightKey
+                            )
+                            external
+                            payable;
 }
 

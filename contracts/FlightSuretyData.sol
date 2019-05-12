@@ -34,7 +34,16 @@ contract FlightSuretyData is FlightSuretyBase {
         mapping(uint => Flight) flights;
     }
 
+    // Mapping for airline account and all relevant info, including flights
     mapping(address => Airline) private airlines;
+
+    // Mapping for passenger account and flight insurance info
+    // Each passenger account points to another mapping of: flight key => FlightInsurance
+    // The data structure is designed with the idea that insurance information will be obtained using the flight key
+    mapping(address => mapping(bytes32 => FlightInsurance)) private passengers;
+
+    // Mapping that enables crediting insurees by flight
+    mapping(bytes32 => address) private insurees;
 
     // Flight status codees
     uint8 private constant STATUS_CODE_UNKNOWN = 0;
@@ -58,6 +67,9 @@ contract FlightSuretyData is FlightSuretyBase {
                                 public
     {
         contractOwner = msg.sender;
+
+        // Add our self to authorized contracts for calling methods that are 'external'
+        authorizedContracts[address(this)] = true;
     }
 
     /********************************************************************************************/
@@ -395,12 +407,12 @@ contract FlightSuretyData is FlightSuretyBase {
                             )
                             external
                             isAuthorized
-                            returns(uint flightNonce)
+                            returns(uint flightNonce, bytes32 flightKey)
     {
         require(_airline != address(0), "must be a valid address.");
         require(airlines[_airline].nonce > 0, "airline not found.");
 
-        bytes32 flightKey = createFlightKey(_airline, _flight, _departureTimestamp, _arrivalTimestamp);
+        flightKey = this.createFlightKey(_airline, _flight, _departureTimestamp, _arrivalTimestamp);
 
         flightNonce = ++airlines[_airline].flightNonce;
 
@@ -424,12 +436,13 @@ contract FlightSuretyData is FlightSuretyBase {
     function createFlightKey
                         (
                             address _airline,
-                            string memory _flight,
+                            string calldata _flight,
                             uint256 _departureTimestamp,
                             uint256 _arrivalTimestamp
                         )
-                        internal
-                        pure
+                        external
+                        view
+                        isAuthorized
                         returns(bytes32)
     {
         require(_airline != address(0), "must be a valid address.");
@@ -512,9 +525,13 @@ contract FlightSuretyData is FlightSuretyBase {
     */
     function buyFlightInsurance
                             (
+                                address _passenger,
+                                address _airline,
+                                bytes32 _flightKey
                             )
                             external
                             payable
+                            isAuthorized
     {
 
     }
@@ -527,8 +544,10 @@ contract FlightSuretyData is FlightSuretyBase {
                                 (
                                 )
                                 external
-                                pure
+                                view
+                                isAuthorized
     {
+
     }
     
 
@@ -540,7 +559,8 @@ contract FlightSuretyData is FlightSuretyBase {
                             (
                             )
                             external
-                            pure
+                            view
+                            isAuthorized
     {
     }
 

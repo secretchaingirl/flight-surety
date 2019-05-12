@@ -1,11 +1,15 @@
 
 var Test = require('../config/testConfig.js');
 const truffleAssert = require('truffle-assertions');
-var BigNumber = require('bignumber.js');
+//var BN = require('bignumber.js');
+const BN = web3.utils.BN;
 
 contract('Flight Surety Tests', async (accounts) => {
 
   var config;
+  let fundAmount = web3.utils.toWei('10', 'ether');
+  let insuranceAmount = web3.utils.toWei('.833', 'ether');
+  let tooMuchInsurance = web3.utils.toWei('2.8', 'ether');
 
   let delta = accounts[1];
   let aa = accounts[2];
@@ -16,6 +20,8 @@ contract('Flight Surety Tests', async (accounts) => {
   let alaskan = accounts[7];
   let british = accounts[8];
   let unregistered = accounts[9];
+  let passenger1 = accounts[10];
+  let passenger2 = accounts[11];
 
   before('setup contract', async () => {
     config = await Test.Config(accounts);
@@ -26,7 +32,7 @@ contract('Flight Surety Tests', async (accounts) => {
     await config.flightSuretyData.approveAirline(delta);
 
     // Use the App contract to fund 1st airline
-    await config.flightSuretyApp.fundAirline({from: delta, value: web3.utils.toWei('10', 'ether')});
+    await config.flightSuretyApp.fundAirline(fundAmount, {from: delta, value: fundAmount});
   });
 
   /****************************************************************************************/
@@ -128,6 +134,8 @@ contract('Flight Surety Tests', async (accounts) => {
 
     // ARRANGE
     let flight = true;
+
+    // ACT
     try {
         await config.flightSuretyApp.registerAirline(aa, "American Airlines", {from: delta});
         await config.flightSuretyApp.registerFlight.call(
@@ -144,7 +152,7 @@ contract('Flight Surety Tests', async (accounts) => {
         flight = false;
     }
     finally {
-        await config.flightSuretyApp.fundAirline({from: aa, value: web3.utils.toWei('10', 'ether')});
+        await config.flightSuretyApp.fundAirline(fundAmount, {from: aa, value: fundAmount});
     }
 
     // ASSERT
@@ -152,17 +160,19 @@ contract('Flight Surety Tests', async (accounts) => {
 
   });
 
+
   it('(airline) requires 50% of airlines for registration when there are more than 5', async () => {
     
     // ARRANGE
+    // n/a
 
     // ACT
     try {        
         await config.flightSuretyApp.registerAirline(united, "United Airlines", {from: delta});
-        await config.flightSuretyApp.fundAirline({from: united, value: web3.utils.toWei('10', 'ether')});
+        await config.flightSuretyApp.fundAirline(fundAmount, {from: united, value: fundAmount});
 
         await config.flightSuretyApp.registerAirline(spirit, "Spirit", {from: delta});
-        await config.flightSuretyApp.fundAirline({from: spirit, value: web3.utils.toWei('10', 'ether')});
+        await config.flightSuretyApp.fundAirline(fundAmount, {from: spirit, value: fundAmount});
 
         await config.flightSuretyApp.registerAirline(jetblue, "JetBlue", {from: delta});
         await config.flightSuretyApp.registerAirline(norwegian, "Norwegian Airlines", {from: delta});
@@ -175,7 +185,6 @@ contract('Flight Surety Tests', async (accounts) => {
     catch(e) {
         console.log(e.message);
     }
-
    
     // ASSERT
     // < 5 should be automatically registered
@@ -198,6 +207,25 @@ contract('Flight Surety Tests', async (accounts) => {
     // M of N - less than 50% votes and airline should note be registered
     result = await config.flightSuretyData.isRegistered.call(alaskan, {from: config.flightSuretyApp.address}); 
     assert.equal(result, false, "Airline shouldn't be registered unless 50% of registered airlines have voted to approve.");
+
+  });
+
+
+  it('(airline) registered airline cannot submit less than 10 ether for funding', async () => {
+
+    // ARRANGE
+    let funded = true;
+
+    // ACT
+    try {
+        await config.flightSuretyApp.fundAirline(fundAmount - 1, {from: jetblue, value: fundAmount - 1});
+    }
+    catch(e) {
+        funded = false;
+    }
+
+    // ASSERT
+    assert.equal(funded, false, "Airline was funded with < 10 ether");
 
   });
 
@@ -230,7 +258,7 @@ contract('Flight Surety Tests', async (accounts) => {
 
   it('(flights) non-registered airline cannot register a flight', async () => {
     // ARRANGE
-    let success = false;
+    let success = true;
 
     let payload = {
         flight: 'UNKNOWN',
@@ -240,9 +268,11 @@ contract('Flight Surety Tests', async (accounts) => {
         arrival: Math.floor(Date.now() / 1000)
     }
 
+    var tx;
+
     // ACT
     try {
-        let tx = await config.flightSuretyApp.registerFlight
+        tx = await config.flightSuretyApp.registerFlight
                                                             (
                                                                 payload.flight,
                                                                 payload.origin,
@@ -252,9 +282,8 @@ contract('Flight Surety Tests', async (accounts) => {
                                                                 { from: unregistered, gas: 5000000}
                                                             );
 
-        success = true;
     } catch {
-
+        success = false;
     } finally {
         // ASSERT
         assert.equal(success, false, "Unregistered flight was able to add a flight.");
@@ -289,16 +318,16 @@ contract('Flight Surety Tests', async (accounts) => {
                                                             );
 
         // Wait for the event
-        truffleAssert.eventEmitted(tx, 'FlightRegistered', ev => {
+        truffleAssert.eventEmitted(tx, 'FlightRegistered', (ev) => {
             flightNonce = ev.nonce;
             flightKey = ev.key;
 
-            return flightNonce === 1;
+            return delta === ev.airline;
 
-        }, 'Flight registration event not emitted.');
+        }, 'Flight registration event error.');
     }
     catch(e) {
-
+        console.log(e);
     }
 
     let isFlight = await config.flightSuretyData.isFlight.call(delta, flightKey, {from: config.flightSuretyApp.address});
@@ -316,6 +345,71 @@ contract('Flight Surety Tests', async (accounts) => {
     assert.equal(flightInfo.destination, payload.destination, "Flight Destination should match.");
     assert.equal(flightInfo.arrivalTimestamp, payload.arrival, "Flight Arrival time should match.");
     assert.equal(flightInfo.statusCode, 0, "Flight status code should be Unknown (0)");
+  });
+
+
+  it('(insurance) passenger can buy flight insurance', async () => {
+
+    // ARRANGE
+    let flightNonce = 1;
+
+    // ACT
+    try {
+        // Get 1st Delta flight
+        let flightInfo = await config.flightSuretyData.getFlight.call(delta, flightNonce, {from: config.flightSuretyApp.address});
+
+        let tx = await config.flightSuretyApp.buyFlightInsurance
+                                                            (
+                                                                delta,
+                                                                flightInfo.key,
+                                                                insuranceAmount,
+                                                                { from: passenger1, value: insuranceAmount, gas: 5000000}
+                                                            );
+
+        // Wait for the event
+        truffleAssert.eventEmitted(tx, 'FlightInsurancePurchased', (ev) => {
+            // Verify all emitted data matches
+            return passenger1 === ev.passenger && 
+                    delta === ev.airline && 
+                    flightInfo.key === ev.flightKey && 
+                    insuranceAmount === ev.amount.toString();
+
+        }, 'Flight insurance purchased event error.');
+    }
+    catch(e) {
+        console.log(e);
+    }
+
+    // ASSERT
+    // TODO: verify insurance on flight for passenger
+  });
+
+  it('(insurance) passenger cannot buy flight insurance for more than 1 ether', async () => {
+
+    // ARRANGE
+    let flightNonce = 1;
+    let purchased = true;
+
+    // ACT
+    try {
+        // Get 1st Delta flight
+        let flightInfo = await config.flightSuretyData.getFlight.call(delta, flightNonce, {from: config.flightSuretyApp.address});
+
+        let tx = await config.flightSuretyApp.buyFlightInsurance
+                                                            (
+                                                                delta,
+                                                                flightInfo.key,
+                                                                tooMuchInsurance,
+                                                                { from: passenger2, value: insuranceAmount, gas: 5000000}
+                                                            );
+    }
+    catch {
+        purchased = false;
+    }
+
+    // ASSERT
+    assert.equal(purchased, false, "Passenger was able to buy more than 1 ether in flight insurance.");
+
   });
 
 });

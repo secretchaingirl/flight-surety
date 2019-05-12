@@ -14,5 +14,14 @@ contract FlightSuretyBase {
             uint256 arrivalTimestamp;
             uint8 statusCode;
     }
-    
+
+    struct FlightInsurance {
+        address airline;
+        uint flightNonce;
+        uint insuranceAmount;
+        uint amountCredited;
+        bool isInsured;
+        bool isPaid;
+        bool isWithdrawn;
+    }
 }

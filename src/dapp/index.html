@@ -89,11 +89,13 @@
     <main class="container">
         <h1>Passengers</h1>
         <div class="row top-20">
-            <label class="form">Flight #</label> 
-            <input type="text" id="passenger-flight" placeholder="DL3558">
+            <label class="form">Flights</label> 
+            <!-- <input type="text" id="passenger-flight" placeholder="DL3558"> -->
+            <select class="form-control form-control-lg col-md-2" id="flight-infos">
+            </select>
             <label class="form">Insurance Amount</label> 
-            <input class="col-md-1" type="number" id="passenger-insurance" placeholder="1">
-            <btn class="btn btn-pri" id="submit-purchase-flight">Purchase Insurance</btn>
+            <input class="col-md-1" type="number" id="passenger-insurance" value="1">
+            <btn class="btn btn-pri" id="submit-purchase-insurance">Purchase Insurance</btn>
         </div>
         <div class="row top-20">
             <div class="info">Passengers may purchase flight insurance up to 1 ether</div>

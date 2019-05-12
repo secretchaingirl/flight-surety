@@ -6,22 +6,51 @@ import './flightsurety.css';
 
 (async() => {
 
-    let result = null;
+    let flightInfos = null;
 
     let contract = new Contract('localhost', () => {
 
         // Read transaction
         contract.isOperational((error, result) => {
-            console.log(error,result);
             status('Operational Status', result ? 'UP' : 'DOWN', []);
             if (error) {
-                display('Errors', 'Report errors', [ { label: 'List Errors', error: error, value: 'must be in test mode'}]);
+                display('Operations', 'Status', [ { label: 'Unknown Error', error: error, value: 'must be in test mode'} ]);
+            }
+        });
+
+        // Get Flights 
+        contract.getFlightInfos((error, results) => {
+            flightInfos = results;
+
+            let select = DOM.elid('flight-infos');
+            DOM.appendOptions(select, flightInfos, (flightInfo) => {
+                return flightInfo[2];
+            });
+        });
+
+        //
+        // Setup event listening
+        //
+
+        // Purchase insurance
+        DOM.elid('submit-purchase-insurance').addEventListener('click', () => {
+            let select = DOM.elid('flight-infos');
+            let flight = DOM.selectedOption(select.children);
+            let insuranceEther = DOM.elid('passenger-insurance').value;
+
+            if (insuranceEther > 1) {
+                display('Flights', 'Purchase Insurance', [ { label: 'Validation Error', error: '', value: 'insurance amount must be <= 1 ether'} ]);
+            } else {
+                // TODO: contract.purchaseInsurance() - go through flightInfos to get match
+                contract.purchaseInsurance(flight, insuranceEther, (error, result) => {
+                    display('Flights', 'Purchase Insurance', [ { label: 'Result', error: error, value: result} ]);
+                });
             }
         });
 
         // Clear contract messages (except for operational status)
         DOM.elid('clear-display').addEventListener('click', () => {
-            var node = DOM.elid('info-wrapper');
+            let node = DOM.elid('info-wrapper');
             DOM.clear(node);
         });
     
@@ -67,7 +96,7 @@ import './flightsurety.css';
             let flight = DOM.elid('flight-number').value;
             // Write transaction
             contract.fetchFlightStatus(flight, (error, result) => {
-                display('Oracles', 'Trigger oracles', [ { label: 'Fetch Flight Status', error: error, value: result.flight + ' ' + result.timestamp} ]);
+                display('Oracles', 'Trigger oracles', [ { label: 'Flight Status', error: error, value: result.flight + ' ' + result.timestamp} ]);
             });
         });
     
@@ -79,6 +108,7 @@ import './flightsurety.css';
 function status(title, description, results) {
     let displayDiv = DOM.elid("status-wrapper");
     let section = DOM.section();
+
     section.appendChild(DOM.h2(title));
     section.appendChild(DOM.h5(description));
     results.map((result) => {
@@ -93,6 +123,7 @@ function status(title, description, results) {
 function display(title, description, results) {
     let displayDiv = DOM.elid("info-wrapper");
     let section = DOM.section();
+
     section.appendChild(DOM.h2(title));
     section.appendChild(DOM.h5(description));
     results.map((result) => {

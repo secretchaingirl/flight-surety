@@ -1,3 +1,9 @@
+
+/* https://stackoverflow.com/questions/9742166/getting-rid-of-all-the-rounded-corners-in-twitter-bootstrap */
+* {
+    border-radius: 0 !important;
+}
+
 body {
     background-image: url('flight.jpg'); /* Source: iStockPhoto */
     background-repeat: no-repeat;
@@ -53,6 +59,11 @@ label.form {
 input {
     margin-right: 30px;
     color: #000;
+}
+
+select {
+    margin-right: 30px;
+    border-radius: 0 !important;
 }
 
 .info {

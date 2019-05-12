@@ -30,6 +30,23 @@ export default class DOM {
             node.removeChild(node.firstChild);
         }
     }
+
+    static appendOptions(el, children, filter) {
+        children.forEach((child) => {
+            var opt = document.createElement('option');
+            opt.value = (filter !== undefined) ? filter(child) : child;
+            opt.innerHTML = opt.value;
+            el.appendChild(opt);
+        });
+    }
+
+    static selectedOption(options) {
+        for (let option of options) {
+            if (option.selected) {
+                return option.value;
+            }
+        }
+    }
   
     static appendText(el, text) {
       const textNode = document.createTextNode(text);

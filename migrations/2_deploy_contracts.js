@@ -37,7 +37,8 @@ module.exports = async function(deployer, network, accounts) {
                             await dataInstance.addAirline(delta, "Delta Airlines");
                             await dataInstance.addVote(delta);
                             await dataInstance.approveAirline(delta);
-                            console.log('Initial airline registered and funded (Delta)\n');
+                            await dataInstance.addFunds(delta);
+                            console.log('Initial airline registered and funded with 10 ether (Delta)\n');
 
                             await dataInstance.addFlight(
                                                             delta,
@@ -89,13 +90,6 @@ module.exports = async function(deployer, network, accounts) {
                             console.log('-----------------------------------');
                             console.log(JSON.stringify(flightInfos));
                             console.log('-----------------------------------\n');
-
-                            // Get App contract instance and submit funding for 1st airline
-                            return FlightSuretyApp.deployed()
-                                .then(async (appInstance) => {
-                                    await appInstance.fundAirline({from: delta, value: web3.utils.toWei('10', 'ether')});
-                                    console.log('Initial airline funded with 10 ether (Delta)');
-                                });
                         });
                 });
         });

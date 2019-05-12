@@ -15,22 +15,22 @@ export default class Contract {
     }
 
     initialize(callback) {
-        this.web3.eth.getAccounts((error, accts) => {
-           
-            this.owner = accts[0];
+        this.web3.eth.getAccounts()
+            .then((accts) => {
+                this.owner = accts[0];
 
-            let counter = 1;
-            
-            while(this.airlines.length < 5) {
-                this.airlines.push(accts[counter++]);
-            }
+                let counter = 1;
+                
+                while(this.airlines.length < 5) {
+                    this.airlines.push(accts[counter++]);
+                }
 
-            while(this.passengers.length < 5) {
-                this.passengers.push(accts[counter++]);
-            }
+                while(this.passengers.length < 5) {
+                    this.passengers.push(accts[counter++]);
+                }
 
-            callback();
-        });
+                callback();
+            });
     }
 
     isOperational(callback) {
@@ -56,10 +56,11 @@ export default class Contract {
 
     fundAirline(airline, callback) {
         let self = this;
+        let fundAmount = this.web3.utils.toWei('10', 'ether');
 
         self.flightSuretyApp.methods
-            .fundAirline()
-            .send({ from: airline, gas: 5000000, value: this.web3.utils.toWei('10', 'ether')}, (error, result) => {
+            .fundAirline(fundAmount)
+            .send({ from: airline, gas: 5000000, value: fundAmount}, (error, result) => {
                 callback(error, result);
             });
     }
@@ -80,6 +81,32 @@ export default class Contract {
             .send({ from: payload.airline, gas: 5000000}, (error, result) => {
                 callback(error, result);
             });
+    }
+
+    getFlightInfos(callback) {
+        let self = this;
+
+        self.flightSuretyApp.methods
+            .getFlightInfos(self.airlines[0])
+            .call({ from: self.owner}, (error, result) => {
+                callback(error, result);
+            });
+    }
+
+    purchaseInsurance(flight, insuranceEther, callback) {
+        let self = this;
+
+        //for (let flightInfo of flightInfos)
+        let payload = {
+            airline: self.airlines[0],
+            flight: flight
+        }
+
+        console.log(`insurance amount in Ether = ${insuranceEther}`);
+
+        let insuranceWei = this.web3.utils.toWei(insuranceEther, 'ether');
+
+        console.log(`insurance amount in Wei = ${insuranceWei}`);
     }
 
     fetchFlightStatus(flight, callback) {
