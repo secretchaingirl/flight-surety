@@ -6,7 +6,7 @@ import './flightsurety.css';
 
 (async() => {
 
-    let flightInfos = null;
+    let flightList = null;
 
     let contract = new Contract('localhost', () => {
 
@@ -19,12 +19,13 @@ import './flightsurety.css';
         });
 
         // Get Flights 
-        contract.getFlightInfos((error, results) => {
-            flightInfos = results;
+        contract.getFlightList((error, results) => {
+            flightList = results;
 
-            let select = DOM.elid('flight-infos');
-            DOM.appendOptions(select, flightInfos, (flightInfo) => {
-                return flightInfo[2];
+            let select = DOM.elid('flight-list');
+            DOM.appendOptions(select, flightList, (flightInfo) => {
+                // 2nd item in array is the flight code
+                return flightInfo[1];
             });
         });
 

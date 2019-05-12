@@ -14,6 +14,7 @@ import "./FlightSuretyBase.sol";
 /* FlightSurety Smart Contract                      */
 /************************************************** */
 contract FlightSuretyApp is FlightSuretyBase {
+
     using SafeMath for uint256; // Allow SafeMath functions to be called for all uint256 types (similar to "prototype" in Javascript)
 
     /********************************************************************************************/
@@ -23,6 +24,9 @@ contract FlightSuretyApp is FlightSuretyBase {
     address private contractOwner;  // Account used to deploy contract
     FlightSuretyData flightSuretyData;  // this is the address of the FlightSuretyData contract
     bool private testingMode = false;   // Allows authorized callers to put the contract in testing mode
+
+    // Maximum number of flights to be retrieved by Contract
+    uint8 private constant GET_FLIGHTS_MAX = 5;
 
     /********************************************************************************************/
     /*                                       EVENTS                                             */
@@ -293,9 +297,11 @@ contract FlightSuretyApp is FlightSuretyBase {
     * TODO: modify to use startIndex and count, up to 20 at a time for paging in a dApp
     *
     */
-    function getFlightInfos
+    function getFlightList
                         (
-                            address _airline
+                            address _airline,
+                            uint _startNonce,
+                            uint _endNonce
                         )
                         external
                         view
@@ -304,8 +310,9 @@ contract FlightSuretyApp is FlightSuretyBase {
     {
         require(flightSuretyData.isAirline(_airline), "Address is not a valid Airline.");
         require(flightSuretyData.isRegistered(_airline), "Airline is not registered.");
+        require((_endNonce - _startNonce) < GET_FLIGHTS_MAX, "# of flights requested exceeds max.");
 
-        return flightSuretyData.getFlights(_airline);
+        return flightSuretyData.getFlightList(_airline, _startNonce, _endNonce);
     }
 
 
@@ -608,8 +615,9 @@ contract FlightSuretyData is FlightSuretyBase {
                     returns(uint flightNonce, bytes32 flightKey);
 
     function isFlight(address _airline, bytes32 _flightKey) external returns(bool);
-    function getFlight(address airline, uint flightNonce) external returns(Flight memory flightInfo);
-    function getFlights(address _airline) external view returns(Flight[] memory flightList);
+    function getFlight(address airline, bytes32 _flightKey) external returns(Flight memory flightInfo);
+    function getFlightKey(address _airline, uint _nonce) external returns(bytes32);
+    function getFlightList(address _airline, uint startNonce, uint endNonce) external view returns(Flight[] memory flightList);
 
     function buyFlightInsurance
                             (

@@ -85,7 +85,17 @@ module.exports = async function(deployer, network, accounts) {
                                                             (Date.parse("2019-06-03T07:00")/1000)
                                                         );
 
-                            let flightInfos = await dataInstance.getFlights.call(delta, 1, {from: FlightSuretyApp.address});
+                            let startNonce = 1;
+                            let endNonce = 5;
+
+                            let flightInfos = await dataInstance.getFlightList.call
+                                                                            (
+                                                                                delta, 
+                                                                                startNonce, 
+                                                                                endNonce, 
+                                                                                {from: FlightSuretyApp.address}
+                                                                            );
+
                             console.log('Initial airline flights registered (Delta)');
                             console.log('-----------------------------------');
                             console.log(JSON.stringify(flightInfos));

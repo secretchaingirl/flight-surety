@@ -31,7 +31,8 @@ contract FlightSuretyData is FlightSuretyBase {
         bool funded;
         uint votes;
         uint flightNonce;                                       // to keep track of current # of registered flights for the Airline
-        mapping(uint => Flight) flights;
+        mapping(uint => bytes32) flightKeys;                    // mapping for flight index to flight key
+        mapping(bytes32 => Flight) flights;
     }
 
     // Mapping for airline account and all relevant info, including flights
@@ -253,14 +254,7 @@ contract FlightSuretyData is FlightSuretyBase {
         require(_airline != address(0), "must be a valid address.");
         require(airlines[_airline].nonce > 0, "airline not found.");
 
-        for (uint8 i = 0; i < airlines[_airline].flightNonce; i++) {
-            // Go through flights and find one that matches the key, if it exists
-            if (airlines[_airline].flights[i].nonce > 0 && airlines[_airline].flights[i].key == _flightKey) {
-                return true;
-            }
-        }
-
-        return false;
+        return (airlines[_airline].flights[_flightKey].nonce > 0);
     }
 
 
@@ -416,9 +410,10 @@ contract FlightSuretyData is FlightSuretyBase {
 
         flightNonce = ++airlines[_airline].flightNonce;
 
-        airlines[_airline].flights[flightNonce - 1] = Flight({
+        airlines[_airline].flightKeys[flightNonce] = flightKey;
+
+        airlines[_airline].flights[flightKey] = Flight({
                                                     nonce: flightNonce,
-                                                    key: flightKey,
                                                     flight: _flight,
                                                     origin: _origin,
                                                     departureTimestamp: _departureTimestamp,
@@ -458,7 +453,7 @@ contract FlightSuretyData is FlightSuretyBase {
     function getFlight
                         (
                             address _airline,
-                            uint _flightNonce
+                            bytes32 _flightKey
                         )
                         external
                         view
@@ -467,11 +462,9 @@ contract FlightSuretyData is FlightSuretyBase {
     {
         require(_airline != address(0), "must be a valid address.");
         require(airlines[_airline].nonce > 0, "airline not found.");
-        require(_flightNonce > 0, "flights start at 1.");
-        require(_flightNonce <= airlines[_airline].flightNonce, "flight nonce out of bounds.");
-        require(airlines[_airline].flights[_flightNonce - 1].nonce > 0, "flight not found.");
+        require(airlines[_airline].flights[_flightKey].nonce > 0, "not a valid flight key.");
 
-        return airlines[_airline].flights[_flightNonce - 1];
+        return airlines[_airline].flights[_flightKey];
     }
 
     /**
@@ -494,12 +487,35 @@ contract FlightSuretyData is FlightSuretyBase {
     }
 
     /**
+    * @dev Given a nonce, return the Flight Key
+    *
+    */
+    function getFlightKey
+                        (
+                            address _airline,
+                            uint _nonce
+                        )
+                        external
+                        view
+                        isAuthorized
+                        returns(bytes32)
+    {
+        require(_airline != address(0), "must be a valid address.");
+        require(airlines[_airline].nonce > 0, "airline not found.");
+        require(_nonce > 0 && _nonce <= airlines[_airline].flightNonce, "flight nonce out of range.");
+
+        return airlines[_airline].flightKeys[_nonce];
+    }
+
+    /**
     * @dev Return 1st five Airline flights
     *
     */
-    function getFlights
+    function getFlightList
                         (
-                            address _airline
+                            address _airline,
+                            uint _startNonce,
+                            uint _endNonce
                         )
                         external
                         view
@@ -508,11 +524,16 @@ contract FlightSuretyData is FlightSuretyBase {
     {
         require(_airline != address(0), "must be a valid address.");
         require(airlines[_airline].nonce > 0, "airline not found.");
+        require(_startNonce > 0 && _startNonce <= airlines[_airline].flightNonce, "flight start nonce out of range.");
+        require(_startNonce < _endNonce, "flight start nonce must be < end nonce.");
+        require(_endNonce > 0 && _endNonce <= airlines[_airline].flightNonce, "flight end nonce out of range.");
 
-        Flight[] memory flightList = new Flight[](5);
+        Flight[] memory flightList = new Flight[](_endNonce - _startNonce + 1);
 
-        for (uint8 i = 0; i < 5 && i < airlines[_airline].flightNonce; i++) {
-            flightList[i] = airlines[_airline].flights[i];
+        uint8 index = 0;
+        for (uint nonce = _startNonce; nonce <= _endNonce; nonce++) {
+            bytes32 flightKey = airlines[_airline].flightKeys[nonce];
+            flightList[index++] = airlines[_airline].flights[flightKey];
         }
 
         return flightList;
@@ -539,7 +560,7 @@ contract FlightSuretyData is FlightSuretyBase {
 
         balance += msg.value;
 
-        
+
     }
 
 

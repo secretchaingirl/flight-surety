@@ -6,7 +6,6 @@ contract FlightSuretyBase {
 
     struct Flight {
             uint nonce;
-            bytes32 key;
             string flight;
             string origin;
             uint256 departureTimestamp;

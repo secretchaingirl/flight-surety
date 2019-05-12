@@ -83,11 +83,13 @@ export default class Contract {
             });
     }
 
-    getFlightInfos(callback) {
+    getFlightList(callback) {
         let self = this;
+        let startNonce = 1;
+        let endNonce = 5;
 
         self.flightSuretyApp.methods
-            .getFlightInfos(self.airlines[0])
+            .getFlightList(self.airlines[0], startNonce, endNonce)
             .call({ from: self.owner}, (error, result) => {
                 callback(error, result);
             });
