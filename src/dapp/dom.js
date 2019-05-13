@@ -33,9 +33,12 @@ export default class DOM {
 
     static appendOptions(el, children, filter) {
         children.forEach((child) => {
-            var opt = document.createElement('option');
-            opt.value = (filter !== undefined) ? filter(child) : child;
-            opt.innerHTML = opt.value;
+            let flightInfo = filter(child);
+            let opt = document.createElement('option');
+
+            opt.value = flightInfo.key;
+            opt.innerHTML = flightInfo.code;
+            
             el.appendChild(opt);
         });
     }

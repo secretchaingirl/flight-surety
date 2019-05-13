@@ -19,13 +19,15 @@ import './flightsurety.css';
         });
 
         // Get Flights 
-        contract.getFlightList((error, results) => {
+        // For now we're just getting a set of flights from the 1st airline registered when the contracts were deployed:
+        //  Delta
+        contract.getFlightList(contract.airlines[0], (error, results) => {
             flightList = results;
 
             let select = DOM.elid('flight-list');
             DOM.appendOptions(select, flightList, (flightInfo) => {
-                // 2nd item in array is the flight code
-                return flightInfo[1];
+                // return object with: flight key, airline flight code
+                return { key: flightInfo[1], code: flightInfo[2] };
             });
         });
 
@@ -33,26 +35,27 @@ import './flightsurety.css';
         // Setup event listening
         //
 
-        // Purchase insurance
-        DOM.elid('submit-purchase-insurance').addEventListener('click', () => {
-            let select = DOM.elid('flight-infos');
-            let flight = DOM.selectedOption(select.children);
-            let insuranceEther = DOM.elid('passenger-insurance').value;
-
-            if (insuranceEther > 1) {
-                display('Flights', 'Purchase Insurance', [ { label: 'Validation Error', error: '', value: 'insurance amount must be <= 1 ether'} ]);
-            } else {
-                // TODO: contract.purchaseInsurance() - go through flightInfos to get match
-                contract.purchaseInsurance(flight, insuranceEther, (error, result) => {
-                    display('Flights', 'Purchase Insurance', [ { label: 'Result', error: error, value: result} ]);
-                });
-            }
-        });
-
         // Clear contract messages (except for operational status)
         DOM.elid('clear-display').addEventListener('click', () => {
             let node = DOM.elid('info-wrapper');
             DOM.clear(node);
+        });
+
+        // Purchase insurance
+        DOM.elid('submit-purchase-insurance').addEventListener('click', () => {
+            let select = DOM.elid('flight-list');
+            let key = DOM.selectedOption(select.children);
+            let amount = DOM.elid('passenger-insurance').value;
+            let passenger = contract.passengers[0];
+
+            if (amount > 1) {
+                display('Flights', 'Purchase Insurance', [ { label: 'Validation Error', error: '', value: 'insurance amount must be <= 1 ether'} ]);
+            } else {
+                // TODO: contract.purchaseInsurance() - go through flightInfos to get match
+                contract.purchaseInsurance(key, amount, passenger, (error, result) => {
+                    display('Flights', 'Purchase Insurance', [ { label: 'Result', error: error, value: result} ]);
+                });
+            }
         });
     
         // Register airline - submit for approval

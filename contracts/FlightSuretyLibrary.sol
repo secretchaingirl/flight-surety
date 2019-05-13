@@ -1,12 +1,12 @@
 pragma solidity ^0.5.8;
 
-// FlightSurety base contract that contains common data structures, methods, etc.
+library FlightSuretyLibrary {
 
-contract FlightSuretyBase {
-
+    // Flight info
     struct Flight {
             uint nonce;
-            string flight;
+            bytes32 key;
+            string code;
             string origin;
             uint256 departureTimestamp;
             string destination;
@@ -14,13 +14,14 @@ contract FlightSuretyBase {
             uint8 statusCode;
     }
 
+    // Struct for managing Flight Insurance per Passenger
+    //
     struct FlightInsurance {
-        address airline;
-        uint flightNonce;
-        uint insuranceAmount;
-        uint amountCredited;
+        uint purchased;
+        uint payout;
         bool isInsured;
-        bool isPaid;
+        bool isCredited;
         bool isWithdrawn;
     }
+
 }

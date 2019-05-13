@@ -88,7 +88,7 @@ module.exports = async function(deployer, network, accounts) {
                             let startNonce = 1;
                             let endNonce = 5;
 
-                            let flightInfos = await dataInstance.getFlightList.call
+                            let flightList = await dataInstance.getFlightList.call
                                                                             (
                                                                                 delta, 
                                                                                 startNonce, 
@@ -98,7 +98,7 @@ module.exports = async function(deployer, network, accounts) {
 
                             console.log('Initial airline flights registered (Delta)');
                             console.log('-----------------------------------');
-                            console.log(JSON.stringify(flightInfos));
+                            console.log(JSON.stringify(flightList));
                             console.log('-----------------------------------\n');
                         });
                 });

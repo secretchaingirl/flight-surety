@@ -83,32 +83,34 @@ export default class Contract {
             });
     }
 
-    getFlightList(callback) {
+    getFlightList(airline, callback) {
         let self = this;
         let startNonce = 1;
         let endNonce = 5;
 
         self.flightSuretyApp.methods
-            .getFlightList(self.airlines[0], startNonce, endNonce)
+            .getFlightList(airline, startNonce, endNonce)
             .call({ from: self.owner}, (error, result) => {
                 callback(error, result);
             });
     }
 
-    purchaseInsurance(flight, insuranceEther, callback) {
+    purchaseInsurance(key, amount, passenger, callback) {
         let self = this;
 
-        //for (let flightInfo of flightInfos)
         let payload = {
             airline: self.airlines[0],
-            flight: flight
+            key: key,
+            amount: this.web3.utils.toWei(amount, 'ether'),
+            passenger: passenger
         }
 
-        console.log(`insurance amount in Ether = ${insuranceEther}`);
-
-        let insuranceWei = this.web3.utils.toWei(insuranceEther, 'ether');
-
-        console.log(`insurance amount in Wei = ${insuranceWei}`);
+        // airline, key, amount
+        self.flightSuretyApp.methods
+            .buyFlightInsurance(payload.airline, payload.key, payload.amount)
+            .send({ from: payload.passenger, value: payload.amount, gas: 5000000}, (error, result) => {
+                callback(error, result);
+            });
     }
 
     fetchFlightStatus(flight, callback) {

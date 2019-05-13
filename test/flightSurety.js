@@ -1,7 +1,6 @@
 
 var Test = require('../config/testConfig.js');
 const truffleAssert = require('truffle-assertions');
-//var BN = require('bignumber.js');
 const BN = web3.utils.BN;
 
 contract('Flight Surety Tests', async (accounts) => {
@@ -294,11 +293,11 @@ contract('Flight Surety Tests', async (accounts) => {
   it('(flights) can register a flight for the airline', async () => {
 
     // ARRANGE
-    var flightKey;
-    var flightNonce;
+    var key;
+    var nonce;
 
     let payload = {
-        flight: 'DL3893',
+        code: 'DL3893',
         origin: 'GRR',
         departure: Math.floor(Date.now() / 1000),
         destination: 'MLE',
@@ -309,7 +308,7 @@ contract('Flight Surety Tests', async (accounts) => {
     try {
         let tx = await config.flightSuretyApp.registerFlight
                                                             (
-                                                                payload.flight,
+                                                                payload.code,
                                                                 payload.origin,
                                                                 payload.departure,
                                                                 payload.destination,
@@ -319,8 +318,8 @@ contract('Flight Surety Tests', async (accounts) => {
 
         // Wait for the event
         truffleAssert.eventEmitted(tx, 'FlightRegistered', (ev) => {
-            flightNonce = ev.nonce;
-            flightKey = ev.key;
+            nonce = ev.nonce;
+            key = ev.key;
 
             return delta === ev.airline;
 
@@ -330,15 +329,15 @@ contract('Flight Surety Tests', async (accounts) => {
         console.log(e);
     }
 
-    let isFlight = await config.flightSuretyData.isFlight.call(delta, flightKey, {from: config.flightSuretyApp.address});
-    let flightInfo = await config.flightSuretyData.getFlight.call(delta, flightKey, {from: config.flightSuretyApp.address});
+    let isFlight = await config.flightSuretyData.isFlight.call(delta, key, {from: config.flightSuretyApp.address});
+    let flightInfo = await config.flightSuretyData.getFlight.call(delta, key, {from: config.flightSuretyApp.address});
 
     // ASSERT
     assert(isFlight, "Delta flight should have been registered.");
     
     // Check all flight info data
-    assert.equal(flightInfo.nonce, flightNonce, "Flight Nonce should be 1.");
-    assert.equal(flightInfo.flight, payload.flight, "Flight # shoudl match.");
+    assert.equal(flightInfo.nonce, nonce, "Flight Nonce should be 1.");
+    assert.equal(flightInfo.code, payload.code, "Flight # should match.");
     assert.equal(flightInfo.origin, payload.origin, "Flight Origin should match.");
     assert.equal(flightInfo.departureTimestamp, payload.departure, "Flight Departure time should match.");
     assert.equal(flightInfo.destination, payload.destination, "Flight Destination should match.");
@@ -350,17 +349,17 @@ contract('Flight Surety Tests', async (accounts) => {
   it('(insurance) passenger can buy flight insurance', async () => {
 
     // ARRANGE
-    let flightNonce = 1;
+    let nonce = 1;
 
     // ACT
     try {
         // Get 1st Delta flight
-        let flightKey = await config.flightSuretyData.getFlightKey.call(delta, flightNonce, {from: config.flightSuretyApp.address});
+        let key = await config.flightSuretyData.getFlightKey.call(delta, nonce, {from: config.flightSuretyApp.address});
 
         let tx = await config.flightSuretyApp.buyFlightInsurance
                                                             (
                                                                 delta,
-                                                                flightKey,
+                                                                key,
                                                                 insuranceAmount,
                                                                 { from: passenger1, value: insuranceAmount, gas: 5000000}
                                                             );
@@ -370,7 +369,7 @@ contract('Flight Surety Tests', async (accounts) => {
             // Verify all emitted data matches
             return passenger1 === ev.passenger && 
                     delta === ev.airline && 
-                    flightKey === ev.flightKey && 
+                    key === ev.key && 
                     insuranceAmount === ev.amount.toString();
 
         }, 'Flight insurance purchased event error.');
@@ -386,18 +385,18 @@ contract('Flight Surety Tests', async (accounts) => {
   it('(insurance) passenger cannot buy flight insurance for more than 1 ether', async () => {
 
     // ARRANGE
-    let flightNonce = 1;
+    let nonce = 1;
     let purchased = true;
 
     // ACT
     try {
         // Get 1st Delta flight
-        let flightKey = await config.flightSuretyData.getFlightKey.call(delta, flightNonce, {from: config.flightSuretyApp.address});
+        let flightKey = await config.flightSuretyData.getFlightKey.call(delta, nonce, {from: config.flightSuretyApp.address});
 
         let tx = await config.flightSuretyApp.buyFlightInsurance
                                                             (
                                                                 delta,
-                                                                flightKey,
+                                                                key,
                                                                 tooMuchInsurance,
                                                                 { from: passenger2, value: insuranceAmount, gas: 5000000}
                                                             );
