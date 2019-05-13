@@ -89,13 +89,14 @@
     <main class="container">
         <h1>Passengers</h1>
         <div class="row top-20">
-            <label class="form">Flights</label> 
+            <label class="form">Flight #</label> 
             <!-- <input type="text" id="passenger-flight" placeholder="DL3558"> -->
-            <select class="form-control form-control-lg col-md-2" id="flight-list">
+            <select class="form-control form-control-lg col-md-2" id="passenger-flight-list">
             </select>
             <label class="form">Insurance Amount</label> 
             <input class="col-md-1" type="number" id="passenger-insurance" value="1">
             <btn class="btn btn-pri" id="submit-purchase-insurance">Purchase Insurance</btn>
+            <btn class="btn btn-pri" id="submit-withdraw-payout">Withdraw Payout</btn>
         </div>
         <div class="row top-20">
             <div class="info">Passengers may purchase flight insurance up to 1 ether</div>
@@ -106,7 +107,8 @@
         <h1>Oracles</h1>
         <div class="row top-20">
             <label class="form">Flight #</label>
-            <input type="text" id="oracle-flight">
+            <select class="form-control form-control-lg col-md-2" id="oracle-flight-list">
+            </select>
             <btn class="btn btn-pri" id="submit-oracle-flight">Submit to Oracles</btn>
         </div>
     </main>

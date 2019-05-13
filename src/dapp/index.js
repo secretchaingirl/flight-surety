@@ -24,9 +24,13 @@ import './flightsurety.css';
         contract.getFlightList(contract.airlines[0], (error, results) => {
             flightList = results;
 
-            let select = DOM.elid('flight-list');
+            let select = DOM.elid('passenger-flight-list');
             DOM.appendOptions(select, flightList, (flightInfo) => {
-                // return object with: flight key, airline flight code
+                return { key: flightInfo[1], code: flightInfo[2] };
+            });
+
+            select = DOM.elid('oracle-flight-list');
+            DOM.appendOptions(select, flightList, (flightInfo) => {
                 return { key: flightInfo[1], code: flightInfo[2] };
             });
         });
@@ -39,23 +43,6 @@ import './flightsurety.css';
         DOM.elid('clear-display').addEventListener('click', () => {
             let node = DOM.elid('info-wrapper');
             DOM.clear(node);
-        });
-
-        // Purchase insurance
-        DOM.elid('submit-purchase-insurance').addEventListener('click', () => {
-            let select = DOM.elid('flight-list');
-            let key = DOM.selectedOption(select.children);
-            let amount = DOM.elid('passenger-insurance').value;
-            let passenger = contract.passengers[0];
-
-            if (amount > 1) {
-                display('Flights', 'Purchase Insurance', [ { label: 'Validation Error', error: '', value: 'insurance amount must be <= 1 ether'} ]);
-            } else {
-                // TODO: contract.purchaseInsurance() - go through flightInfos to get match
-                contract.purchaseInsurance(key, amount, passenger, (error, result) => {
-                    display('Flights', 'Purchase Insurance', [ { label: 'Result', error: error, value: result} ]);
-                });
-            }
         });
     
         // Register airline - submit for approval
@@ -94,6 +81,26 @@ import './flightsurety.css';
                 display('Flights', 'Register Flight', [ { label: 'Result', error: error, value: result} ]);
             });
         });
+
+        // Purchase insurance
+        DOM.elid('submit-purchase-insurance').addEventListener('click', () => {
+            let select = DOM.elid('passenger-flight-list');
+            let key = DOM.selectedOption(select.children);
+            let amount = DOM.elid('passenger-insurance').value;
+            let passenger = contract.passengers[0];
+
+            if (amount > 1) {
+                display('Flights', 'Purchase Insurance', [ { label: 'Validation Error', error: '', value: 'insurance amount must be <= 1 ether'} ]);
+            } else {
+                // TODO: contract.purchaseInsurance() - go through flightInfos to get match
+                contract.purchaseInsurance(key, amount, passenger, (error, result) => {
+                    display('Flights', 'Purchase Insurance', [ { label: 'Result', error: error, value: result} ]);
+                });
+            }
+        });
+
+        // Withdraw insurance payout
+        // TODO: submit withdraw payout to App contract
 
         // Fetch flight status - submit to Oracles transaction
         DOM.elid('submit-oracle').addEventListener('click', () => {
