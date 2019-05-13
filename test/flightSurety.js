@@ -350,11 +350,12 @@ contract('Flight Surety Tests', async (accounts) => {
 
     // ARRANGE
     let nonce = 1;
+    var key;
 
     // ACT
     try {
         // Get 1st Delta flight
-        let key = await config.flightSuretyData.getFlightKey.call(delta, nonce, {from: config.flightSuretyApp.address});
+        key = await config.flightSuretyData.getFlightKey.call(delta, nonce, {from: config.flightSuretyApp.address});
 
         let tx = await config.flightSuretyApp.buyFlightInsurance
                                                             (
@@ -362,7 +363,7 @@ contract('Flight Surety Tests', async (accounts) => {
                                                                 key,
                                                                 insuranceAmount,
                                                                 { from: passenger1, value: insuranceAmount, gas: 5000000}
-                                                            );
+                                                            );                                                 
 
         // Wait for the event
         truffleAssert.eventEmitted(tx, 'FlightInsurancePurchased', (ev) => {
@@ -379,7 +380,13 @@ contract('Flight Surety Tests', async (accounts) => {
     }
 
     // ASSERT
-    // TODO: verify insurance on flight for passenger
+    let insurance = await config.flightSuretyApp.getPassengerInsurance.call(passenger1, delta, key);
+    
+    assert.equal(insuranceAmount, insurance[0], "Flight insurance amount not correct.");
+    assert.equal("0", insurance[1], "Flight Insurance payout should be 0.");
+    assert.equal(true, insurance[2], "Passenger isn't insured.");
+    assert.equal(false, insurance[3], "Passenger insurance shouldn't be credited.");
+    assert.equal(false, insurance[4], "Passenger insurance hasn't been withdrawn");
   });
 
   it('(insurance) passenger cannot buy flight insurance for more than 1 ether', async () => {

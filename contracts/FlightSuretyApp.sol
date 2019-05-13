@@ -350,6 +350,25 @@ contract FlightSuretyApp {
         emit FlightInsurancePurchased(passenger, airline, key, amount);
     }
 
+    function getPassengerInsurance
+                                (
+                                    address passenger,
+                                    address airline,
+                                    bytes32 key
+                                )
+                                external
+                                payable
+                                requireIsOperational
+                                returns(FlightSuretyLibrary.FlightInsurance memory insurance)
+    {
+        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
+        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
+        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
+        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
+
+        return flightSuretyData.getPassengerInsurance(passenger, airline, key);
+    }
+
    /**
     * @dev Called after oracle has updated flight status
     *
@@ -635,5 +654,14 @@ contract FlightSuretyData {
                             )
                             external
                             payable;
+
+    function getPassengerInsurance
+                            (
+                                address passenger,
+                                address airline,
+                                bytes32 key
+                            )
+                            external
+                            returns(FlightSuretyLibrary.FlightInsurance memory insurance);
 }
 
