@@ -376,14 +376,13 @@ contract FlightSuretyApp {
     function processFlightStatus
                                 (
                                     address airline,
-                                    string memory code,
+                                    bytes32 key,
                                     uint256 timestamp,
                                     uint8 statusCode
                                 )
                                 internal
                                 view
                                 requireIsOperational
-                                requireIsFunded
     {
     }
 
@@ -392,30 +391,34 @@ contract FlightSuretyApp {
     function fetchFlightStatus
                         (
                             address airline,
-                            string calldata code,
+                            bytes32 key,
                             uint256 timestamp
                         )
                         external
                         requireIsOperational
-                        requireIsFunded
     {
+        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
+        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
+        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
+        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
+
         uint8 index = getRandomIndex(msg.sender);
 
         // Generate a unique key for storing the request
-        bytes32 key = keccak256(abi.encodePacked(index, airline, code, timestamp));
+        //bytes32 key = keccak256(abi.encodePacked(index, airline, code, timestamp));
         oracleResponses[key] = ResponseInfo({
                                                 requester: msg.sender,
                                                 isOpen: true
                                             });
 
-        emit OracleRequest(index, airline, code, timestamp);
+        emit OracleRequest(index, airline, key, timestamp);
     }
 
 
 // region ORACLE MANAGEMENT
 
     // Incremented to add pseudo-randomness at various points
-    uint8 private nonce = 0;
+    uint8 private oracleNonce = 0;
 
     // Fee to be paid when registering oracle
     uint256 public constant REGISTRATION_FEE = 1 ether;
@@ -442,18 +445,18 @@ contract FlightSuretyApp {
     }
 
     // Track all oracle responses
-    // Key = hash(index, flight, timestamp)
+    // Flight Key => Oracle ResponseInfo
     mapping(bytes32 => ResponseInfo) private oracleResponses;
 
     // Event fired each time an oracle submits a response
-    event FlightStatusInfo(address airline, string code, uint256 timestamp, uint8 status);
+    event FlightStatusInfo(address airline, bytes32 key, uint256 timestamp, uint8 status);
 
-    event OracleReport(address airline, string code, uint256 timestamp, uint8 status);
+    event OracleReport(address airline, bytes32 key, uint256 timestamp, uint8 status);
 
     // Event fired when flight status request is submitted
     // Oracles track this and if they have a matching index
     // they fetch data and submit a response
-    event OracleRequest(uint8 index, address airline, string code, uint256 timestamp);
+    event OracleRequest(uint8 index, address airline, bytes32 key, uint256 timestamp);
 
 
     // Register an oracle with the contract
@@ -477,8 +480,8 @@ contract FlightSuretyApp {
     function getMyIndexes
                             (
                             )
-                            view
                             external
+                            view
                             returns(uint8[3] memory)
     {
         require(oracles[msg.sender].isRegistered, "Not registered as an oracle");
@@ -495,7 +498,7 @@ contract FlightSuretyApp {
                         (
                             uint8 index,
                             address airline,
-                            string calldata code,
+                            bytes32 key,
                             uint256 timestamp,
                             uint8 statusCode
                         )
@@ -509,20 +512,20 @@ contract FlightSuretyApp {
         );
 
 
-        bytes32 key = keccak256(abi.encodePacked(index, airline, code, timestamp));
+        //bytes32 key = keccak256(abi.encodePacked(index, airline, code, timestamp));
         require(oracleResponses[key].isOpen, "Flight or timestamp do not match oracle request");
 
         oracleResponses[key].responses[statusCode].push(msg.sender);
 
         // Information isn't considered verified until at least MIN_RESPONSES
         // oracles respond with the *** same *** information
-        emit OracleReport(airline, code, timestamp, statusCode);
+        emit OracleReport(airline, key, timestamp, statusCode);
         if (oracleResponses[key].responses[statusCode].length >= MIN_RESPONSES) {
 
-            emit FlightStatusInfo(airline, code, timestamp, statusCode);
+            emit FlightStatusInfo(airline, key, timestamp, statusCode);
 
             // Handle flight status as appropriate
-            processFlightStatus(airline, code, timestamp, statusCode);
+            processFlightStatus(airline, key, timestamp, statusCode);
         }
     }
 
@@ -563,10 +566,10 @@ contract FlightSuretyApp {
         uint8 maxValue = 10;
 
         // Pseudo random number...the incrementing nonce adds variation
-        uint8 random = uint8(uint256(keccak256(abi.encodePacked(blockhash(block.number - nonce++), account))) % maxValue);
+        uint8 random = uint8(uint256(keccak256(abi.encodePacked(blockhash(block.number - oracleNonce++), account))) % maxValue);
 
-        if (nonce > 250) {
-            nonce = 0;  // Can only fetch blockhashes for last 256 blocks so we adapt
+        if (oracleNonce > 250) {
+            oracleNonce = 0;  // Can only fetch blockhashes for last 256 blocks so we adapt
         }
 
         return random;
