@@ -21,12 +21,22 @@ contract FlightSuretyApp {
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
 
-    address private contractOwner;  // Account used to deploy contract
+    address private contractOwner;      // Account used to deploy contract
     FlightSuretyData flightSuretyData;  // this is the address of the FlightSuretyData contract
     bool private testingMode = false;   // Allows authorized callers to put the contract in testing mode
+    uint private balance = 0;           // Contract balance
 
     // Maximum number of flights to be retrieved by Contract
     uint8 private constant GET_FLIGHTS_MAX = 5;
+
+    uint8 UNKNOWN = 0;
+    uint8 ON_TIME = 10;
+    uint8 LATE_AIRLINE = 20;
+    uint8 LATE_WEATHER = 30;
+    uint8 LATE_TECHNICAL = 40;
+    uint8 LATE_OTHER = 50;
+
+    mapping(uint8 => string) private flightStatusCodes;
 
     /********************************************************************************************/
     /*                                       EVENTS                                             */
@@ -111,6 +121,25 @@ contract FlightSuretyApp {
         _;
     }
 
+    /**
+    * @dev Modifier that requires the Flight Status code to be valid
+    */
+    modifier isFlightStatusCode(uint8 status)
+    {
+        require
+            (
+                status == UNKNOWN ||
+                status == ON_TIME ||
+                status == LATE_AIRLINE ||
+                status == LATE_WEATHER ||
+                status == LATE_TECHNICAL ||
+                status == LATE_OTHER,
+                "Invalid Flight Status code."
+            );
+        _;
+    }
+
+
 
     /********************************************************************************************/
     /*                                       CONSTRUCTOR                                        */
@@ -128,6 +157,14 @@ contract FlightSuretyApp {
     {
         // Set the contract owner
         contractOwner = msg.sender;
+
+        // Setup flight status code mappings
+        flightStatusCodes[UNKNOWN] = "Unknown";
+        flightStatusCodes[ON_TIME] = "On Time";
+        flightStatusCodes[LATE_AIRLINE] = "Late Airline";
+        flightStatusCodes[LATE_WEATHER] = "Late Weather";
+        flightStatusCodes[LATE_TECHNICAL] = "Late Technical";
+        flightStatusCodes[LATE_OTHER] = "Late Other";
 
         // Set reference to the Data contract
         flightSuretyData = FlightSuretyData(dataContractAddress);
@@ -384,6 +421,7 @@ contract FlightSuretyApp {
                                 view
                                 requireIsOperational
     {
+        
     }
 
 
@@ -402,30 +440,28 @@ contract FlightSuretyApp {
         require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
         require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
 
-        uint8 index = getRandomIndex(msg.sender);
+        uint8[3] memory indexes = generateIndexes(msg.sender);
 
-        // Generate a unique key for storing the request
-        //bytes32 key = keccak256(abi.encodePacked(index, airline, code, timestamp));
         oracleResponses[key] = ResponseInfo({
                                                 requester: msg.sender,
                                                 isOpen: true
                                             });
 
-        emit OracleRequest(index, airline, key, timestamp);
+        emit OracleRequest(indexes, airline, key, timestamp);
     }
 
 
 // region ORACLE MANAGEMENT
 
     // Incremented to add pseudo-randomness at various points
-    uint8 private oracleNonce = 0;
+    uint8 private oracleNonce;
+    uint private oracleBalance = 0;
 
     // Fee to be paid when registering oracle
     uint256 public constant REGISTRATION_FEE = 1 ether;
 
     // Number of oracles that must respond for valid status
     uint256 private constant MIN_RESPONSES = 3;
-
 
     struct Oracle {
         bool isRegistered;
@@ -449,14 +485,17 @@ contract FlightSuretyApp {
     mapping(bytes32 => ResponseInfo) private oracleResponses;
 
     // Event fired each time an oracle submits a response
-    event FlightStatusInfo(address airline, bytes32 key, uint256 timestamp, uint8 status);
+    event FlightStatusInfo(address airline, bytes32 key, uint256 timestamp, uint8 statusCode, string status);
 
-    event OracleReport(address airline, bytes32 key, uint256 timestamp, uint8 status);
+    event OracleReport(address airline, bytes32 key, uint256 timestamp, uint8 statusCode, string status);
 
     // Event fired when flight status request is submitted
     // Oracles track this and if they have a matching index
     // they fetch data and submit a response
-    event OracleRequest(uint8 index, address airline, bytes32 key, uint256 timestamp);
+    event OracleRequest(uint8[3] indexes, address airline, bytes32 key, uint256 timestamp);
+
+    // Event that fires when an Oracle registers
+    event OracleRegistered(address oracle, uint8 index1, uint8 index2, uint8 index3);
 
 
     // Register an oracle with the contract
@@ -469,12 +508,16 @@ contract FlightSuretyApp {
         // Require registration fee
         require(msg.value >= REGISTRATION_FEE, "Registration fee is required");
 
+        oracleBalance += msg.value;
+
         uint8[3] memory indexes = generateIndexes(msg.sender);
 
         oracles[msg.sender] = Oracle({
                                         isRegistered: true,
                                         indexes: indexes
                                     });
+
+        emit OracleRegistered(msg.sender, indexes[0], indexes[1], indexes[2]);
     }
 
     function getMyIndexes
@@ -492,37 +535,55 @@ contract FlightSuretyApp {
 
     // Called by oracle when a response is available to an outstanding request
     // For the response to be accepted, there must be a pending request that is open
-    // and matches one of the three Indexes randomly assigned to the oracle at the
+    // and matches all three Indexes randomly assigned to the oracle at the
     // time of registration (i.e. uninvited oracles are not welcome)
     function submitOracleResponse
                         (
-                            uint8 index,
+                            uint8[3] calldata indexes,
                             address airline,
                             bytes32 key,
                             uint256 timestamp,
                             uint8 statusCode
                         )
                         external
+                        //isFlightStatusCode(statusCode)
     {
         require((
-            oracles[msg.sender].indexes[0] == index) ||
-            (oracles[msg.sender].indexes[1] == index) ||
-            (oracles[msg.sender].indexes[2] == index),
-            "Index does not match oracle request"
+            oracles[msg.sender].indexes[0] == indexes[0]) &&
+            (oracles[msg.sender].indexes[1] == indexes[1]) &&
+            (oracles[msg.sender].indexes[2] == indexes[2]),
+            "Oracle index is not valid."
         );
 
+        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
+        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
+        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
+        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
 
-        //bytes32 key = keccak256(abi.encodePacked(index, airline, code, timestamp));
-        require(oracleResponses[key].isOpen, "Flight or timestamp do not match oracle request");
+        require(oracleResponses[key].isOpen, "Oracle request for flight doesn't exist.");
 
         oracleResponses[key].responses[statusCode].push(msg.sender);
 
         // Information isn't considered verified until at least MIN_RESPONSES
         // oracles respond with the *** same *** information
-        emit OracleReport(airline, key, timestamp, statusCode);
+        // When consensus is reached on flight status, close the oracle flight status request
+
+        emit OracleReport(airline, key, timestamp, statusCode, flightStatusCodes[statusCode]);
+
         if (oracleResponses[key].responses[statusCode].length >= MIN_RESPONSES) {
 
-            emit FlightStatusInfo(airline, key, timestamp, statusCode);
+            // Close the flight status request
+            oracleResponses[key].isOpen = false;
+
+            // Remove the flight key oracle responses
+            delete oracleResponses[key].responses[UNKNOWN];
+            delete oracleResponses[key].responses[ON_TIME];
+            delete oracleResponses[key].responses[LATE_AIRLINE];
+            delete oracleResponses[key].responses[LATE_WEATHER];
+            delete oracleResponses[key].responses[LATE_TECHNICAL];
+            delete oracleResponses[key].responses[LATE_OTHER];
+
+            emit FlightStatusInfo(airline, key, timestamp, statusCode, flightStatusCodes[statusCode]);
 
             // Handle flight status as appropriate
             processFlightStatus(airline, key, timestamp, statusCode);
@@ -539,6 +600,10 @@ contract FlightSuretyApp {
                             returns(uint8[3] memory)
     {
         uint8[3] memory indexes;
+        uint8 index;
+
+        oracleNonce = 0;
+
         indexes[0] = getRandomIndex(account);
 
         indexes[1] = indexes[0];
@@ -549,6 +614,11 @@ contract FlightSuretyApp {
         indexes[2] = indexes[1];
         while((indexes[2] == indexes[0]) || (indexes[2] == indexes[1])) {
             indexes[2] = getRandomIndex(account);
+        }
+
+        index = indexes[0];
+        while (indexes[0] == index) {
+            indexes[0] = getRandomIndex(account);
         }
 
         return indexes;

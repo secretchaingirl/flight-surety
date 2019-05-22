@@ -572,7 +572,7 @@ contract FlightSuretyData {
 
 
     /**
-     *  @dev Credits payouts to insurees
+     *  @dev Get Passenger's flight insurance info for an airline/flight key
     */
     function getPassengerInsurance
                                 (

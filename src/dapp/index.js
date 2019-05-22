@@ -36,8 +36,35 @@ import './flightsurety.css';
         });
 
         //
-        // Setup event listening
-        //
+        // Setup events to watch for
+
+        // FlightInsurancePurchased event
+        contract.FlightInsurancePurchased((error, event) => {
+            event.returnValues['blockNumber'] = event.blockNumber;
+            display('Flight Events', 'FlightInsurancePurchased', [ { label: 'Result', error: error, value: event.returnValues } ]);
+        });
+        // FlightRegistered event
+        contract.FlightRegistered((error, event) => {
+            event.returnValues['blockNumber'] = event.blockNumber;
+            display('Flight Events', 'FlightRegistered', [ { label: 'Result', error: error, value: event.returnValues} ]);
+        });
+        // OracleRegistered event
+        /*
+        contract.OracleRegistered((error, event) => {
+            event.returnValues['blockNumber'] = event.blockNumber;
+            display('Oracle Events', 'OracleRegistered', [ { label: 'Result', error: error, value: event.returnValues} ]);
+        });
+        */
+        // OracleRequest event
+        contract.OracleRequest((error, event) => {
+            event.returnValues['blockNumber'] = event.blockNumber;
+            display('Oracle Events', 'OracleRequest', [ { label: 'Result', error: error, value: event.returnValues} ]);
+        })
+        // FlightStatusInfo event
+        contract.FlightStatusInfo((error, event) => {
+            event.returnValues['blockNumber'] = event.blockNumber;
+            display('Oracle Events', 'FlightStatusInfo', [ { label: 'Result', error: error, value: event.returnValues} ]);
+        })
 
         // Clear contract messages (except for operational status)
         DOM.elid('clear-display').addEventListener('click', () => {
@@ -76,7 +103,8 @@ import './flightsurety.css';
             let departure = DOM.elid('flight-departure').value;
             let destination = DOM.elid('flight-destination').value;
             let arrival = DOM.elid('flight-arrival').value;
-            // Write transaction
+
+            // Do the register flight transaction
             contract.registerFlight(airline, flight, origin, departure, destination, arrival, (error, result) => {
                 display('Flights', 'Register Flight', [ { label: 'Result', error: error, value: result} ]);
             });
@@ -92,7 +120,7 @@ import './flightsurety.css';
             if (amount > 1) {
                 display('Flights', 'Purchase Insurance', [ { label: 'Validation Error', error: '', value: 'insurance amount must be <= 1 ether'} ]);
             } else {
-                // TODO: contract.purchaseInsurance() - go through flightInfos to get match
+                // Do the purchase insurance transaction
                 contract.purchaseInsurance(key, amount, passenger, (error, result) => {
                     display('Flights', 'Purchase Insurance', [ { label: 'Result', error: error, value: result} ]);
                 });
@@ -108,12 +136,11 @@ import './flightsurety.css';
             let key = DOM.selectedOption(select.children);
             // Write transaction
             contract.fetchFlightStatus(key, (error, result) => {
-                display('Oracles', 'Trigger oracles', [ { label: 'Flight Status Request', error: error, value: JSON.stringify(result)} ]);
+                display('Oracles', 'Trigger oracles', [ { label: 'Flight Status Request', error: error, value: result} ]);
             });
         });
     
-    });
-    
+    }); 
 
 })();
 
@@ -140,8 +167,28 @@ function display(title, description, results) {
     section.appendChild(DOM.h5(description));
     results.map((result) => {
         let row = section.appendChild(DOM.div({className:'row'}));
-        row.appendChild(DOM.div({className: 'col-sm-2 field'}, result.label));
-        row.appendChild(DOM.div({className: 'col-sm-10 field-value'}, result.error ? String(result.error) : String(result.value)));
+
+        if (result.error) {
+            row.appendChild(DOM.div({className: 'col-sm-2 field'}, result.label));
+            row.appendChild(DOM.div({className: 'col-sm-10 field-value'}, String(result.error)));
+        }
+        
+        if (typeof result.value === 'object' ) {
+            // convert event object to array of event info
+            // https://stackoverflow.com/questions/38824349/how-to-convert-an-object-to-an-array-of-key-value-pairs-in-javascript
+            let resultInfo = Object.keys(result.value).map(function(key) {
+                
+                // Don't process keys that contain numbers
+                if (!hasNumber(key)) {
+                    row.appendChild(DOM.div({className: 'col-sm-2 field'}, key));
+                    row.appendChild(DOM.div({className: 'col-sm-10 field-value'}, String(result.value[key])));
+                    section.appendChild(row);
+                }
+            });
+        } else {
+            row.appendChild(DOM.div({className: 'col-sm-10 field-value'}, String(result.value)));
+        }
+        
         section.appendChild(row);
     })
     displayDiv.append(section);
@@ -154,6 +201,11 @@ function display(title, description, results) {
 function top() {
     document.body.scrollTop = 0; // For Safari
     document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
+}
+
+//https://stackoverflow.com/questions/5778020/check-whether-an-input-string-contains-a-number-in-javascript/5778071
+function hasNumber(value) {
+    return /\d/.test(value);
 }
 
 

@@ -6,7 +6,9 @@ export default class Contract {
     constructor(network, callback) {
 
         let config = Config[network];
-        this.web3 = new Web3(new Web3.providers.HttpProvider(config.url));
+        //this.web3 = new Web3(new Web3.providers.HttpProvider(config.url));
+        // Have to use web sockets to be able to watch for contract events
+        this.web3 = new Web3(new Web3.providers.WebsocketProvider(config.url.replace('http', 'ws')));
         this.flightSuretyApp = new this.web3.eth.Contract(FlightSuretyApp.abi, config.appAddress);
         this.owner = null;
         this.airlines = [];
@@ -17,21 +19,80 @@ export default class Contract {
     initialize(callback) {
         this.web3.eth.getAccounts()
             .then((accts) => {
-                this.owner = accts[0];
+                let self = this;
+                self.owner = accts[0];
 
                 let counter = 1;
                 
-                while(this.airlines.length < 5) {
-                    this.airlines.push(accts[counter++]);
+                while(self.airlines.length < 5) {
+                    self.airlines.push(accts[counter++]);
                 }
 
-                while(this.passengers.length < 5) {
-                    this.passengers.push(accts[counter++]);
+                while(self.passengers.length < 5) {
+                    self.passengers.push(accts[counter++]);
                 }
 
                 callback();
             });
     }
+
+    // 
+    // Define event methods - when triggered, then invoke the callback method with the error and event parameters
+    //
+
+    FlightRegistered(callback) {
+        let self = this;
+        self.flightSuretyApp.events.FlightRegistered({
+            fromBlock: 'latest', 
+            toBlock: 'latest'
+          }, (error, event) => {
+            callback(error, event);
+        });
+    }
+
+    FlightInsurancePurchased(callback) {
+        let self = this;
+        self.flightSuretyApp.events.FlightInsurancePurchased({
+            fromBlock: 'latest', 
+            toBlock: 'latest'
+          }, (error, event) => {
+            callback(error, event);
+        });
+    }
+
+    OracleRegistered(callback) {
+        let self = this;
+        self.flightSuretyApp.events.OracleRegistered({
+            fromBlock: 'latest',
+            toBlock: 'latest',
+        }, (error, event) => {
+            callback(error, event);
+        });
+    }
+
+    OracleRequest(callback) {
+        let self = this;
+        self.flightSuretyApp.events.OracleRequest({
+            fromBlock: 'latest',
+            toBlock: 'latest',
+        }, (error, event) => {
+            callback(error, event);
+        });
+    }
+
+    FlightStatusInfo(callback) {
+        let self = this;
+        self.flightSuretyApp.events.FlightStatusInfo({
+            fromBlock: 'latest',
+            toBlock: 'latest',
+        }, (error, event) => {
+            callback(error, event);
+        });
+    }
+
+    //
+    // FlightSuretyApp contract calls
+    //
 
     isOperational(callback) {
        let self = this;
@@ -124,7 +185,7 @@ export default class Contract {
 
         self.flightSuretyApp.methods
             .fetchFlightStatus(payload.airline, payload.key, payload.timestamp)
-            .send({ from: self.owner}, (error, result) => {
+            .send({ from: self.owner, gas: 5000000}, (error, result) => {
                 callback(error, payload);
             });
     }
