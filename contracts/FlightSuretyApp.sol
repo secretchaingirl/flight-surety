@@ -121,6 +121,7 @@ contract FlightSuretyApp {
         _;
     }
 
+
     /**
     * @dev Modifier that requires the Flight Status code to be valid
     */
@@ -285,7 +286,7 @@ contract FlightSuretyApp {
         // Approve the registration is there are less than 5 airlines currently registered
         //  OR
         // When the airline has received 50% of the vote
-        if (registrations < 5 || ((votes * 2) >= registrations)) {
+        if (registrations < 5 || ((votes.mul(2)) >= registrations)) {
             flightSuretyData.approveAirline(account);
             return(true);
         }
@@ -347,7 +348,13 @@ contract FlightSuretyApp {
     {
         require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
         require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
-        require((endNonce - startNonce) < GET_FLIGHTS_MAX, "# of flights requested exceeds max.");
+        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
+
+        uint flightNonce = flightSuretyData.getFlightNonce(airline);
+
+        require(startNonce > 0 && startNonce <= flightNonce, "flight start nonce out of range.");
+        require(endNonce > 0 && endNonce <= flightNonce, "flight end nonce out of range.");
+        require(endNonce.sub(startNonce) < GET_FLIGHTS_MAX, "# of flights requested exceeds max.");
 
         return flightSuretyData.getFlightList(airline, startNonce, endNonce);
     }
@@ -394,7 +401,6 @@ contract FlightSuretyApp {
                                     bytes32 key
                                 )
                                 external
-                                payable
                                 requireIsOperational
                                 returns(FlightSuretyLibrary.FlightInsurance memory insurance)
     {
@@ -403,25 +409,64 @@ contract FlightSuretyApp {
         require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
         require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
 
-        return flightSuretyData.getPassengerInsurance(passenger, airline, key);
+        return flightSuretyData.getPassengerInsurance(airline, key, passenger);
     }
 
    /**
-    * @dev Called after oracle has updated flight status
+    * @dev Called after oracle has updated flight status and handles 'late' airline flights and insurance payouts
     *
     */
     function processFlightStatus
                                 (
                                     address airline,
                                     bytes32 key,
-                                    uint256 timestamp,
                                     uint8 statusCode
                                 )
                                 internal
-                                view
                                 requireIsOperational
     {
-        
+        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
+        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
+
+        if (statusCode != UNKNOWN && statusCode != ON_TIME) {
+            address[] memory passengers;
+
+            passengers = flightSuretyData.getInsuredPassengers(airline, key);
+            for (uint i = 0; i < passengers.length; i++) {
+                FlightSuretyLibrary.FlightInsurance memory insurance;
+                uint amountToPayout;
+
+                insurance = flightSuretyData.getPassengerInsurance(airline, key, passengers[i]);
+                amountToPayout = insurance.purchased.add(insurance.purchased.div(2));
+
+                flightSuretyData.creditFlightInsuree(airline, key, passengers[i], amountToPayout);
+
+                // TODO: emit payout event
+            }
+        }
+    }
+
+
+    /**
+    * @dev After payout, insured passenger issues the withdraw request to get the payout in their wallet
+    *
+    */
+    function payFlightInsuree
+                                (
+                                    address airline,
+                                    bytes32 key,
+                                    address payable passenger
+                                )
+                                external
+                                payable
+                                requireIsOperational
+    {
+        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
+        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
+        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
+        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
+
+        flightSuretyData.payFlightInsuree(airline, key, passenger);
     }
 
 
@@ -508,7 +553,7 @@ contract FlightSuretyApp {
         // Require registration fee
         require(msg.value >= REGISTRATION_FEE, "Registration fee is required");
 
-        oracleBalance += msg.value;
+        oracleBalance = oracleBalance.add(msg.value);
 
         uint8[3] memory indexes = generateIndexes(msg.sender);
 
@@ -546,7 +591,7 @@ contract FlightSuretyApp {
                             uint8 statusCode
                         )
                         external
-                        //isFlightStatusCode(statusCode)
+                        isFlightStatusCode(statusCode)
     {
         require((
             oracles[msg.sender].indexes[0] == indexes[0]) &&
@@ -554,11 +599,6 @@ contract FlightSuretyApp {
             (oracles[msg.sender].indexes[2] == indexes[2]),
             "Oracle index is not valid."
         );
-
-        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
-        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
-        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
-        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
 
         require(oracleResponses[key].isOpen, "Oracle request for flight doesn't exist.");
 
@@ -586,7 +626,7 @@ contract FlightSuretyApp {
             emit FlightStatusInfo(airline, key, timestamp, statusCode, flightStatusCodes[statusCode]);
 
             // Handle flight status as appropriate
-            processFlightStatus(airline, key, timestamp, statusCode);
+            processFlightStatus(airline, key, statusCode);
         }
     }
 
@@ -709,6 +749,7 @@ contract FlightSuretyData {
     function isFlight(address airline, bytes32 key) external returns(bool);
     function getFlight(address airline, bytes32 key) external returns(FlightSuretyLibrary.Flight memory flightInfo);
     function getFlightKey(address airline, uint nonce) external returns(bytes32);
+    function getFlightNonce(address airline) external view returns(uint);
     function getFlightList
                         (
                             address airline,
@@ -729,12 +770,39 @@ contract FlightSuretyData {
                             payable;
 
     function getPassengerInsurance
+                                (
+                                    address airline,
+                                    bytes32 key,
+                                    address passenger
+                                )
+                                external
+                                view
+                                returns(FlightSuretyLibrary.FlightInsurance memory insuree);
+
+    function getInsuredPassengers
                             (
-                                address passenger,
                                 address airline,
                                 bytes32 key
                             )
                             external
-                            returns(FlightSuretyLibrary.FlightInsurance memory insurance);
+                            view
+                            returns(address[] memory passengers);
+
+    function creditFlightInsuree
+                                (
+                                    address airline,
+                                    bytes32 key,
+                                    address passenger,
+                                    uint amountToPayout
+                                )
+                                external;
+
+    function payFlightInsuree
+                            (
+                                address airline,
+                                bytes32 key,
+                                address payable passenger
+                            )
+                            external;
 }
 
