@@ -12,13 +12,7 @@ contract('Oracles', async (accounts) => {
 
     let fundAmount = web3.utils.toWei('10', 'ether');
 
-    // Watch contract events
-    const STATUS_CODE_UNKNOWN = 0;
-    const STATUS_CODE_ON_TIME = 10;
-    const STATUS_CODE_LATE_AIRLINE = 20;
-    const STATUS_CODE_LATE_WEATHER = 30;
-    const STATUS_CODE_LATE_TECHNICAL = 40;
-    const STATUS_CODE_LATE_OTHER = 50;
+    const flightStatusCodes = [ 0, 10, 20, 30, 40, 50 ];
 
     before('setup contract', async () => {
         config = await Test.Config(accounts);
@@ -59,7 +53,7 @@ contract('Oracles', async (accounts) => {
             }, 'Flight registration event error.');
         }
         catch(e) {
-            console.log(e);
+
         }
     });
 
@@ -71,9 +65,17 @@ contract('Oracles', async (accounts) => {
 
         // ACT
         for(let a = 1; a < TEST_ORACLES_COUNT; a++) {      
-            await config.flightSuretyApp.registerOracle({ from: accounts[a], value: fee });
-            let result = await config.flightSuretyApp.getMyIndexes.call({from: accounts[a]});
-            console.log(`Oracle Registered: ${result[0]}, ${result[1]}, ${result[2]}`);
+            let tx = await config.flightSuretyApp.registerOracle({ from: accounts[a], value: fee });
+
+            // Wait for the event
+            truffleAssert.eventEmitted(tx, 'OracleRegistered', (ev) => {
+                return (ev.oracle === accounts[a]);
+
+            }, 'Oracle Registration event error.');
+
+            // Enable for debugging
+            //let result = await config.flightSuretyApp.getMyIndexes.call({from: accounts[a]});
+            //console.log(`Oracle Registered: ${result[0]}, ${result[1]}, ${result[2]}`);
         }
     });
 
@@ -81,38 +83,51 @@ contract('Oracles', async (accounts) => {
 
         // ARRANGE
         let timestamp = Math.floor(Date.now() / 1000);
-
         // Submit a request for oracles to get status information for a flight
-        await config.flightSuretyApp.fetchFlightStatus(delta, flightKey, timestamp);
+        let tx = await config.flightSuretyApp.fetchFlightStatus(delta, flightKey, timestamp);
+
         // ACT
+        truffleAssert.eventEmitted(tx, 'OracleRequest', (ev) => {
+            return true;
+        }, 'Oracle Request event error.');
 
         // Since the Index assigned to each test account is opaque by design
         // loop through all the accounts and for each account, all its Indexes
         // and submit a response. The contract will reject a submission if it was
         // not requested so while sub-optimal, it's a good test of that feature
 
+        let statusIdx = 2;      // Start with late status
         for(let a = 1; a < TEST_ORACLES_COUNT; a++) {
-
             // Get oracle information
             let oracleIndexes = await config.flightSuretyApp.getMyIndexes.call({ from: accounts[a]});
-            for(let idx = 0;idx < 3;idx++) {
 
-                try {
-                    // Submit a response...it will only be accepted if there is an Index match
-                    await config.flightSuretyApp.submitOracleResponse
-                                                                (
-                                                                    oracleIndexes[idx],
-                                                                    delta,
-                                                                    flightKey,
-                                                                    timestamp,
-                                                                    STATUS_CODE_ON_TIME,
-                                                                    { from: accounts[a] }
-                                                                );
+            try {
+
+                // Submit a response...it will only be accepted if there is an Index match
+                let tx = await config.flightSuretyApp.submitOracleResponse
+                                                            (
+                                                                oracleIndexes,
+                                                                delta,
+                                                                flightKey,
+                                                                timestamp,
+                                                                flightStatusCodes[statusIdx],
+                                                                { from: accounts[a] }
+                                                            );
+
+                truffleAssert.eventEmitted(tx, 'FlightStatusInfo', (ev) => {
+                    return(ev.airline === delta && ev.key === flightKey && ev.statusCode == flightStatusCodes[statusId]);
+                }, 'Flight Status Info event error.');
+
+                //console.log(`Oracle response accepted: ${oracleIndexes}, ${flightStatusCodes[statusIdx]}, flightKey = ${flightKey}`);
+                statusIdx++;
+
+                // Trying to cycle through the different flight status codes for variability in the test
+                if (statusIdx > 5) {
+                    statusIdx = 0;
                 }
-                catch(e) {
-                    // Enable this when debugging
-                    // console.log('\nError', idx, oracleIndexes[idx].toNumber(), flightKey, timestamp);
-                }
+            }
+            catch(e) {
+                //console.log(`OK - Oracle response rejected: ${oracleIndexes}, flightKey = ${flightKey}`);
             }
         }
     });

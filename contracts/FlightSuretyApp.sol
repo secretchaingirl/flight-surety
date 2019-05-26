@@ -8,7 +8,7 @@ pragma experimental ABIEncoderV2;
 // More info: https://www.nccgroup.trust/us/about-us/newsroom-and-events/blog/2018/november/smart-contract-insecurity-bad-arithmetic/
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
-import "./FlightSuretyLibrary.sol";
+import "./FlightSuretyLib.sol";
 
 /************************************************** */
 /* FlightSurety Smart Contract                      */
@@ -29,14 +29,11 @@ contract FlightSuretyApp {
     // Maximum number of flights to be retrieved by Contract
     uint8 private constant GET_FLIGHTS_MAX = 5;
 
-    uint8 UNKNOWN = 0;
-    uint8 ON_TIME = 10;
-    uint8 LATE_AIRLINE = 20;
-    uint8 LATE_WEATHER = 30;
-    uint8 LATE_TECHNICAL = 40;
-    uint8 LATE_OTHER = 50;
-
+    // Mapping for flight status codes
     mapping(uint8 => string) private flightStatusCodes;
+
+    using FlightSuretyLib for FlightSuretyLib.FlightSurety;
+    FlightSuretyLib.FlightSurety private flightSurety;
 
     /********************************************************************************************/
     /*                                       EVENTS                                             */
@@ -50,12 +47,24 @@ contract FlightSuretyApp {
                         );
 
     event FlightInsurancePurchased
-                                (
-                                    address passenger,
-                                    address airline,
-                                    bytes32 key,
-                                    uint amount
-                                );
+                            (
+                                address passenger,
+                                address airline,
+                                bytes32 key,
+                                uint amount
+                            );
+
+    event FlightDelayed(address airline, bytes32 key);
+
+    event InsuredPassengerPayout
+                            (
+                                address airline,
+                                bytes32 key,
+                                address passenger,
+                                uint amountToPayout
+                            );
+
+    event PassengerInsuranceWithdrawal(address passenger, uint amountWithdrawn);
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -69,9 +78,9 @@ contract FlightSuretyApp {
     *      This is used on all state changing functions to pause the contract in
     *      the event there is an issue that needs to be fixed
     */
-    modifier requireIsOperational()
+    modifier requireOperational()
     {
-        require(isOperational(), "Contract is not operational");
+        require(flightSuretyData.isOperational(), "Contract is not operational");
         _;
     }
 
@@ -89,7 +98,7 @@ contract FlightSuretyApp {
     /**
     * @dev Modifier that requires the function caller to be an Airline
     */
-    modifier requireIsAirline()
+    modifier requireAirline()
     {
         require(flightSuretyData.isAirline(msg.sender), "Caller is not a valid Airline.");
         _;
@@ -99,7 +108,7 @@ contract FlightSuretyApp {
     /**
     * @dev Modifier that requires the function caller to be a Registered Airline
     */
-    modifier requireIsRegistered()
+    modifier requireRegistered()
     {
         require(flightSuretyData.isRegistered(msg.sender), "Caller is not a registered Airline.");
         _;
@@ -111,7 +120,7 @@ contract FlightSuretyApp {
     *       Airlines can be registered, but cannot participate in the
     *       contract unless they've provided funding of at least 10 ether
     */
-    modifier requireIsFunded()
+    modifier requireFunded()
     {
         require
             (
@@ -123,23 +132,38 @@ contract FlightSuretyApp {
 
 
     /**
-    * @dev Modifier that requires the Flight Status code to be valid
+    * @dev Modifier that requires the "Registered Airline" account to be funded
+    *       Airlines can be registered, but cannot participate in the
+    *       contract unless they've provided funding of at least 10 ether
     */
-    modifier isFlightStatusCode(uint8 status)
+    modifier requireFlight(address airline, bytes32 key)
     {
         require
             (
-                status == UNKNOWN ||
-                status == ON_TIME ||
-                status == LATE_AIRLINE ||
-                status == LATE_WEATHER ||
-                status == LATE_TECHNICAL ||
-                status == LATE_OTHER,
-                "Invalid Flight Status code."
+                flightSuretyData.isFlight(airline, key) == true,
+                "Specified Flight Key is not valid."
             );
         _;
     }
 
+
+    /**
+    * @dev Modifier that requires the Flight Status code to be valid
+    */
+    modifier requireFlightStatus(uint8 status)
+    {
+        require
+            (
+                status == FlightSuretyLib.STATUS_CODE_UNKNOWN() ||
+                status == FlightSuretyLib.STATUS_CODE_ON_TIME() ||
+                status == FlightSuretyLib.STATUS_CODE_LATE_AIRLINE() ||
+                status == FlightSuretyLib.STATUS_CODE_LATE_WEATHER() ||
+                status == FlightSuretyLib.STATUS_CODE_LATE_TECHNICAL() ||
+                status == FlightSuretyLib.STATUS_CODE_LATE_OTHER(),
+                "Invalid Flight Status code."
+            );
+        _;
+    }
 
 
     /********************************************************************************************/
@@ -160,12 +184,12 @@ contract FlightSuretyApp {
         contractOwner = msg.sender;
 
         // Setup flight status code mappings
-        flightStatusCodes[UNKNOWN] = "Unknown";
-        flightStatusCodes[ON_TIME] = "On Time";
-        flightStatusCodes[LATE_AIRLINE] = "Late Airline";
-        flightStatusCodes[LATE_WEATHER] = "Late Weather";
-        flightStatusCodes[LATE_TECHNICAL] = "Late Technical";
-        flightStatusCodes[LATE_OTHER] = "Late Other";
+        flightStatusCodes[FlightSuretyLib.STATUS_CODE_UNKNOWN()] = "Unknown";
+        flightStatusCodes[FlightSuretyLib.STATUS_CODE_ON_TIME()] = "On Time";
+        flightStatusCodes[FlightSuretyLib.STATUS_CODE_LATE_AIRLINE()] = "Late Airline";
+        flightStatusCodes[FlightSuretyLib.STATUS_CODE_LATE_WEATHER()] = "Late Weather";
+        flightStatusCodes[FlightSuretyLib.STATUS_CODE_LATE_TECHNICAL()] = "Late Technical";
+        flightStatusCodes[FlightSuretyLib.STATUS_CODE_LATE_OTHER()] = "Late Other";
 
         // Set reference to the Data contract
         flightSuretyData = FlightSuretyData(dataContractAddress);
@@ -177,16 +201,21 @@ contract FlightSuretyApp {
     /********************************************************************************************/
 
     /**
-    * @dev Function that determines if the Contract is OPERATIONAL
+    * @dev Determine if FlightSuretyData contract is operational
     */
-    function isOperational()
-                            public
-                            view
-                            returns(bool)
+    function isOperational() external view returns(bool)
     {
-        return flightSuretyData.isOperational();
+        bool operational = flightSuretyData.isOperational();
+        return(operational);
     }
 
+    /**
+    * @dev Determine if FlightSuretyData contract is operational
+    */
+    function getBalance() external view returns(uint)
+    {
+        return(flightSuretyData.getBalance());
+    }
 
     /**
     * @dev Allows the Contract to be put in Testing mode
@@ -197,7 +226,7 @@ contract FlightSuretyApp {
                             )
                             external
                             requireContractOwner
-                            requireIsOperational
+                            requireOperational
     {
         testingMode = _testingMode;
     }
@@ -219,8 +248,8 @@ contract FlightSuretyApp {
                     )
                     public
                     payable
-                    requireIsOperational
-                    requireIsAirline
+                    requireOperational
+                    requireAirline
     {
         require(msg.value >= 10 ether, "Funding requires at least 10 ether.");
         require(msg.value == fundAmount, "Funding amount must match transaction value.");
@@ -243,10 +272,10 @@ contract FlightSuretyApp {
                         string calldata name
                     )
                     external
-                    requireIsOperational
-                    requireIsAirline
-                    requireIsRegistered
-                    requireIsFunded
+                    requireOperational
+                    requireAirline
+                    requireRegistered
+                    requireFunded
                     returns(bool success, bytes memory data)
     {
         flightSuretyData.addAirline(account, name);
@@ -269,10 +298,10 @@ contract FlightSuretyApp {
                     address account
                 )
                 external
-                requireIsOperational
-                requireIsAirline
-                requireIsRegistered
-                requireIsFunded
+                requireOperational
+                requireAirline
+                requireRegistered
+                requireFunded
                 returns(bool)
     {
         require(flightSuretyData.isAirline(account) == true, "Can't vote for Airline that doesn't exist.");
@@ -307,10 +336,10 @@ contract FlightSuretyApp {
                             uint256 arrival
                         )
                         external
-                        requireIsOperational
-                        requireIsAirline
-                        requireIsRegistered
-                        requireIsFunded
+                        requireOperational
+                        requireAirline
+                        requireRegistered
+                        requireFunded
     {
         address airline = msg.sender;
         uint nonce;
@@ -343,18 +372,17 @@ contract FlightSuretyApp {
                         )
                         external
                         view
-                        requireIsOperational
-                        returns(FlightSuretyLibrary.Flight[] memory)
+                        requireOperational
+                        returns(FlightSuretyLib.Flight[] memory)
     {
-        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
-        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
-        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
+        require(flightSuretyData.isAirline(airline), "not a valid airline.");
 
         uint flightNonce = flightSuretyData.getFlightNonce(airline);
 
         require(startNonce > 0 && startNonce <= flightNonce, "flight start nonce out of range.");
         require(endNonce > 0 && endNonce <= flightNonce, "flight end nonce out of range.");
-        require(endNonce.sub(startNonce) < GET_FLIGHTS_MAX, "# of flights requested exceeds max.");
+        require(startNonce <= endNonce, "flight start nonce must be less than or equal to the end nonce.");
+        require(endNonce.sub(startNonce) <= GET_FLIGHTS_MAX, "# of flights requested exceeds max.");
 
         return flightSuretyData.getFlightList(airline, startNonce, endNonce);
     }
@@ -374,14 +402,11 @@ contract FlightSuretyApp {
                             )
                             public
                             payable
-                            requireIsOperational
+                            requireOperational
+                            requireFlight(airline, key)
     {
-        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
-        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
-        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
-        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
-        // TODO: verify that passenger has purchased the Flight (tbd)
-        // TODO: make sure Flight departure time is in the future (tbd)
+        FlightSuretyLib.FlightInsurance memory insurance = flightSuretyData.getPassengerInsurance(airline, key, msg.sender);
+        require(insurance.isInsured == false, "Passenger has already purchased insurance for this flight.");
         require(msg.value == amount, "Not enough funds to purchase insurance amount requested.");
         require(msg.value <= 1 ether, "Maximum allow insurance amount is 1 ether.");
 
@@ -394,23 +419,6 @@ contract FlightSuretyApp {
         emit FlightInsurancePurchased(passenger, airline, key, amount);
     }
 
-    function getPassengerInsurance
-                                (
-                                    address passenger,
-                                    address airline,
-                                    bytes32 key
-                                )
-                                external
-                                requireIsOperational
-                                returns(FlightSuretyLibrary.FlightInsurance memory insurance)
-    {
-        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
-        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
-        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
-        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
-
-        return flightSuretyData.getPassengerInsurance(airline, key, passenger);
-    }
 
    /**
     * @dev Called after oracle has updated flight status and handles 'late' airline flights and insurance payouts
@@ -423,25 +431,31 @@ contract FlightSuretyApp {
                                     uint8 statusCode
                                 )
                                 internal
-                                requireIsOperational
+                                requireOperational
+                                requireFlight(airline, key)
     {
-        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
-        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
+        if (statusCode != FlightSuretyLib.STATUS_CODE_UNKNOWN() && statusCode != FlightSuretyLib.STATUS_CODE_ON_TIME()) {
 
-        if (statusCode != UNKNOWN && statusCode != ON_TIME) {
+            emit FlightDelayed(airline, key);
+
             address[] memory passengers;
 
             passengers = flightSuretyData.getInsuredPassengers(airline, key);
             for (uint i = 0; i < passengers.length; i++) {
-                FlightSuretyLibrary.FlightInsurance memory insurance;
+                FlightSuretyLib.FlightInsurance memory insurance;
                 uint amountToPayout;
 
                 insurance = flightSuretyData.getPassengerInsurance(airline, key, passengers[i]);
-                amountToPayout = insurance.purchased.add(insurance.purchased.div(2));
 
-                flightSuretyData.creditFlightInsuree(airline, key, passengers[i], amountToPayout);
+                // Only credit passenger for this flight if not already done
+                if (insurance.isCredited == false) {
+                    amountToPayout = insurance.purchased.add(insurance.purchased.div(2));
 
-                // TODO: emit payout event
+                    flightSuretyData.creditFlightInsuree(airline, key, passengers[i], amountToPayout);
+
+                    // Emit the payout event so passenger can do the withdraw
+                    emit InsuredPassengerPayout(airline, key, passengers[i], amountToPayout);
+                }
             }
         }
     }
@@ -459,14 +473,12 @@ contract FlightSuretyApp {
                                 )
                                 external
                                 payable
-                                requireIsOperational
+                                requireOperational
+                                requireFlight(airline, key)
     {
-        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
-        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
-        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
-        require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
+        uint amountWithdrawn = flightSuretyData.payFlightInsuree(airline, key, passenger);
 
-        flightSuretyData.payFlightInsuree(airline, key, passenger);
+        emit PassengerInsuranceWithdrawal(passenger, amountWithdrawn);
     }
 
 
@@ -478,11 +490,8 @@ contract FlightSuretyApp {
                             uint256 timestamp
                         )
                         external
-                        requireIsOperational
+                        requireOperational
     {
-        require(flightSuretyData.isAirline(airline), "Address is not a valid Airline.");
-        require(flightSuretyData.isRegistered(airline), "Airline is not registered.");
-        require(flightSuretyData.isFunded(airline), "Airline exists, but is not funded and cannot participate.");
         require(flightSuretyData.isFlight(airline, key), "Flight does not exist.");
 
         uint8[3] memory indexes = generateIndexes(msg.sender);
@@ -529,9 +538,10 @@ contract FlightSuretyApp {
     // Flight Key => Oracle ResponseInfo
     mapping(bytes32 => ResponseInfo) private oracleResponses;
 
-    // Event fired each time an oracle submits a response
+    // Event is fired when the minimum Oracle responses are received and a flight status update can be issued
     event FlightStatusInfo(address airline, bytes32 key, uint256 timestamp, uint8 statusCode, string status);
 
+    // Event fired each time an oracle submits a response
     event OracleReport(address airline, bytes32 key, uint256 timestamp, uint8 statusCode, string status);
 
     // Event fired when flight status request is submitted
@@ -591,7 +601,7 @@ contract FlightSuretyApp {
                             uint8 statusCode
                         )
                         external
-                        isFlightStatusCode(statusCode)
+                        //requireFlightStatus(statusCode)
     {
         require((
             oracles[msg.sender].indexes[0] == indexes[0]) &&
@@ -599,7 +609,6 @@ contract FlightSuretyApp {
             (oracles[msg.sender].indexes[2] == indexes[2]),
             "Oracle index is not valid."
         );
-
         require(oracleResponses[key].isOpen, "Oracle request for flight doesn't exist.");
 
         oracleResponses[key].responses[statusCode].push(msg.sender);
@@ -616,12 +625,12 @@ contract FlightSuretyApp {
             oracleResponses[key].isOpen = false;
 
             // Remove the flight key oracle responses
-            delete oracleResponses[key].responses[UNKNOWN];
-            delete oracleResponses[key].responses[ON_TIME];
-            delete oracleResponses[key].responses[LATE_AIRLINE];
-            delete oracleResponses[key].responses[LATE_WEATHER];
-            delete oracleResponses[key].responses[LATE_TECHNICAL];
-            delete oracleResponses[key].responses[LATE_OTHER];
+            delete oracleResponses[key].responses[FlightSuretyLib.STATUS_CODE_UNKNOWN()];
+            delete oracleResponses[key].responses[FlightSuretyLib.STATUS_CODE_ON_TIME()];
+            delete oracleResponses[key].responses[FlightSuretyLib.STATUS_CODE_LATE_AIRLINE()];
+            delete oracleResponses[key].responses[FlightSuretyLib.STATUS_CODE_LATE_WEATHER()];
+            delete oracleResponses[key].responses[FlightSuretyLib.STATUS_CODE_LATE_TECHNICAL()];
+            delete oracleResponses[key].responses[FlightSuretyLib.STATUS_CODE_LATE_OTHER()];
 
             emit FlightStatusInfo(airline, key, timestamp, statusCode, flightStatusCodes[statusCode]);
 
@@ -687,17 +696,6 @@ contract FlightSuretyApp {
 
 // endregion
 
-    /**
-    * @dev Fallback function for funding smart contract.
-    *
-    */
-    function()
-                            external
-                            payable
-                            requireIsOperational
-    {
-        fundAirline(10 ether);
-    }
 }
 
 // Define the data contract interface
@@ -705,6 +703,7 @@ contract FlightSuretyApp {
 contract FlightSuretyData {
 
     function isOperational() public view returns(bool);
+    function getBalance() external view returns (uint);
 
     //
     // Airline operations
@@ -747,7 +746,7 @@ contract FlightSuretyData {
                     returns(uint nonce, bytes32 key);
 
     function isFlight(address airline, bytes32 key) external returns(bool);
-    function getFlight(address airline, bytes32 key) external returns(FlightSuretyLibrary.Flight memory flightInfo);
+    function getFlight(address airline, bytes32 key) external returns(FlightSuretyLib.Flight memory flightInfo);
     function getFlightKey(address airline, uint nonce) external returns(bytes32);
     function getFlightNonce(address airline) external view returns(uint);
     function getFlightList
@@ -758,7 +757,7 @@ contract FlightSuretyData {
                         )
                         external
                         view
-                        returns(FlightSuretyLibrary.Flight[] memory flightList);
+                        returns(FlightSuretyLib.Flight[] memory flightList);
 
     function buyFlightInsurance
                             (
@@ -777,7 +776,7 @@ contract FlightSuretyData {
                                 )
                                 external
                                 view
-                                returns(FlightSuretyLibrary.FlightInsurance memory insuree);
+                                returns(FlightSuretyLib.FlightInsurance memory insuree);
 
     function getInsuredPassengers
                             (
@@ -803,6 +802,7 @@ contract FlightSuretyData {
                                 bytes32 key,
                                 address payable passenger
                             )
-                            external;
+                            external
+                            returns(uint);
 }
 

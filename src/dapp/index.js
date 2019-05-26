@@ -65,11 +65,34 @@ import './flightsurety.css';
             event.returnValues['blockNumber'] = event.blockNumber;
             display('Oracle Events', 'FlightStatusInfo', [ { label: 'Result', error: error, value: event.returnValues} ]);
         })
+        // FlightDelayed event
+        contract.FlightDelayed((error, event) => {
+            event.returnValues['blockNumber'] = event.blockNumber;
+            display('Flight Events', 'FlightDelayed', [ { label: 'Result', error: error, value: event.returnValues} ]);
+        })
+        // InsuredPassengerPayout event
+        contract.InsuredPassengerPayout((error, event) => {
+            event.returnValues['blockNumber'] = event.blockNumber;
+            display('Passenger Events', 'InsuredPassengerPayout', [ { label: 'Result', error: error, value: event.returnValues} ]);
+        })    
+        // PassengerInsuranceWithdrawal event
+        contract.PassengerInsuranceWithdrawal((error, event) => {
+            event.returnValues['blockNumber'] = event.blockNumber;
+            display('Passenger Events', 'PassengerInsuranceWithdrawal', [ { label: 'Result', error: error, value: event.returnValues} ]);
+        })
 
         // Clear contract messages (except for operational status)
         DOM.elid('clear-display').addEventListener('click', () => {
             let node = DOM.elid('info-wrapper');
             DOM.clear(node);
+        });
+
+        // Get data contract balance
+        DOM.elid('submit-get-balance').addEventListener('click', () => {
+            // Write transaction
+            contract.getBalance((error, result) => {
+                display('Contracts', 'Get Balance', [ { label: 'Result', error: error, value: result} ]);
+            });
         });
     
         // Register airline - submit for approval
@@ -128,6 +151,19 @@ import './flightsurety.css';
         });
 
         // Withdraw insurance payout
+        DOM.elid('submit-withdraw-payout').addEventListener('click', () => {
+            let select = DOM.elid('passenger-flight-list');
+            let key = DOM.selectedOption(select.children);
+            let passenger = contract.passengers[0];
+
+            // Do the insurance withdrawal
+            contract.payFlightInsuree(key, passenger, (error, result) => {
+                display('Passengers', 'Pay Flight Insuree', [ { label: 'Result', error: error, value: result} ]);
+            });
+        });
+
+
+        // Withdraw insurance payout
         // TODO: submit withdraw payout to App contract
 
         // Fetch flight status - submit to Oracles transaction
@@ -150,6 +186,7 @@ function status(title, description, results) {
 
     section.appendChild(DOM.h2(title));
     section.appendChild(DOM.h5(description));
+
     results.map((result) => {
         let row = section.appendChild(DOM.div({className:'row'}));
         row.appendChild(DOM.div({className: 'col-sm-4 field'}, result.label));
@@ -165,15 +202,20 @@ function display(title, description, results) {
 
     section.appendChild(DOM.h2(title));
     section.appendChild(DOM.h5(description));
-    results.map((result) => {
+
+    results.map((result) => {   
         let row = section.appendChild(DOM.div({className:'row'}));
 
         if (result.error) {
             row.appendChild(DOM.div({className: 'col-sm-2 field'}, result.label));
             row.appendChild(DOM.div({className: 'col-sm-10 field-value'}, String(result.error)));
         }
-        
-        if (typeof result.value === 'object' ) {
+
+        // If result contains an error, there won't be a value
+        if (result.value === null)
+            return;
+     
+        if (typeof result.value === 'object') {
             // convert event object to array of event info
             // https://stackoverflow.com/questions/38824349/how-to-convert-an-object-to-an-array-of-key-value-pairs-in-javascript
             let resultInfo = Object.keys(result.value).map(function(key) {

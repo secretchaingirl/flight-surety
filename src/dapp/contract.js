@@ -9,6 +9,7 @@ export default class Contract {
         //this.web3 = new Web3(new Web3.providers.HttpProvider(config.url));
         // Have to use web sockets to be able to watch for contract events
         this.web3 = new Web3(new Web3.providers.WebsocketProvider(config.url.replace('http', 'ws')));
+        this.BN = this.web3.utils.BN;
         this.flightSuretyApp = new this.web3.eth.Contract(FlightSuretyApp.abi, config.appAddress);
         this.owner = null;
         this.airlines = [];
@@ -90,6 +91,36 @@ export default class Contract {
         });
     }
 
+    FlightDelayed(callback) {
+        let self = this;
+        self.flightSuretyApp.events.FlightDelayed({
+            fromBlock: 'latest',
+            toBlock: 'latest',
+        }, (error, event) => {
+            callback(error, event);
+        });
+    }
+
+    InsuredPassengerPayout(callback) {
+        let self = this;
+        self.flightSuretyApp.events.InsuredPassengerPayout({
+            fromBlock: 'latest',
+            toBlock: 'latest',
+        }, (error, event) => {
+            callback(error, event);
+        });
+    }
+
+    PassengerInsuranceWithdrawal(callback) {
+        let self = this;
+        self.flightSuretyApp.events.PassengerInsuranceWithdrawal({
+            fromBlock: 'latest',
+            toBlock: 'latest',
+        }, (error, event) => {
+            callback(error, event);
+        });
+    }
+
     //
     // FlightSuretyApp contract calls
     //
@@ -99,6 +130,15 @@ export default class Contract {
        self.flightSuretyApp.methods
             .isOperational()
             .call({ from: self.owner}, callback);
+    }
+
+    getBalance(callback) {
+        let self = this;
+        self.flightSuretyApp.methods
+            .getBalance()
+            .call({from: self.owner}, (error, result) => {
+                callback(error, this.web3.utils.toBN(result).toString());
+            });
     }
 
     registerAirline(airline, name, callback) {
@@ -170,6 +210,23 @@ export default class Contract {
         self.flightSuretyApp.methods
             .buyFlightInsurance(payload.airline, payload.key, payload.amount)
             .send({ from: payload.passenger, value: payload.amount, gas: 5000000}, (error, result) => {
+                callback(error, result);
+            });
+    }
+
+    payFlightInsuree(key, passenger, callback) {
+        let self = this;
+
+        let payload = {
+            airline: self.airlines[0],
+            key: key,
+            passenger: passenger
+        } 
+
+        // airline, key, amount
+        self.flightSuretyApp.methods
+            .payFlightInsuree(payload.airline, payload.key, payload.passenger)
+            .send({ from: payload.passenger, gas: 5000000}, (error, result) => {
                 callback(error, result);
             });
     }

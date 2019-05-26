@@ -21,6 +21,8 @@ contract('Flight Surety Tests', async (accounts) => {
   let unregistered = accounts[9];
   let passenger1 = accounts[10];
   let passenger2 = accounts[11];
+  let passenger3 = accounts[12];
+  let passenger4 = accounts[13];
 
   before('setup contract', async () => {
     config = await Test.Config(accounts);
@@ -182,7 +184,7 @@ contract('Flight Surety Tests', async (accounts) => {
         await config.flightSuretyApp.voteForAirline(norwegian, {from: united});
     }
     catch(e) {
-        console.log(e.message);
+
     }
    
     // ASSERT
@@ -307,14 +309,14 @@ contract('Flight Surety Tests', async (accounts) => {
     // ACT
     try {
         let tx = await config.flightSuretyApp.registerFlight
-                                                            (
-                                                                payload.code,
-                                                                payload.origin,
-                                                                payload.departure,
-                                                                payload.destination,
-                                                                payload.arrival,
-                                                                { from: delta, gas: 5000000}
-                                                            );
+                                                        (
+                                                            payload.code,
+                                                            payload.origin,
+                                                            payload.departure,
+                                                            payload.destination,
+                                                            payload.arrival,
+                                                            { from: delta, gas: 5000000}
+                                                        );
 
         // Wait for the event
         truffleAssert.eventEmitted(tx, 'FlightRegistered', (ev) => {
@@ -326,7 +328,7 @@ contract('Flight Surety Tests', async (accounts) => {
         }, 'Flight registration event error.');
     }
     catch(e) {
-        console.log(e);
+
     }
 
     let isFlight = await config.flightSuretyData.isFlight.call(delta, key, {from: config.flightSuretyApp.address});
@@ -376,17 +378,109 @@ contract('Flight Surety Tests', async (accounts) => {
         }, 'Flight insurance purchased event error.');
     }
     catch(e) {
-        console.log(e);
+
     }
 
     // ASSERT
-    let insurance = await config.flightSuretyApp.getPassengerInsurance.call(passenger1, delta, key);
+    let insurance = await config.flightSuretyData.getPassengerInsurance.call(delta, key, passenger1, {from: config.flightSuretyApp.address});
     
     assert.equal(insuranceAmount, insurance[0], "Flight insurance amount not correct.");
     assert.equal("0", insurance[1], "Flight Insurance payout should be 0.");
     assert.equal(true, insurance[2], "Passenger isn't insured.");
     assert.equal(false, insurance[3], "Passenger insurance shouldn't be credited.");
     assert.equal(false, insurance[4], "Passenger insurance hasn't been withdrawn");
+  });
+
+  it('(insurance) passenger can buy flight insurance ONLY once', async () => {
+
+    // ARRANGE
+    let nonce = 1;
+    var key;
+
+    // ACT
+    try {
+        // Get 1st Delta flight
+        key = await config.flightSuretyData.getFlightKey.call(delta, nonce, {from: config.flightSuretyApp.address});
+
+        let tx = await config.flightSuretyApp.buyFlightInsurance
+                                                            (
+                                                                delta,
+                                                                key,
+                                                                insuranceAmount,
+                                                                { from: passenger1, value: insuranceAmount, gas: 5000000}
+                                                            );                                                 
+        
+        // Wait for the event
+        truffleAssert.eventEmitted(tx, 'FlightInsurancePurchased', (ev) => {
+            return false;
+
+        }, 'Flight insurance purchased event should not have been emitted.');
+    }
+    catch(e) {
+
+    }
+
+    // ASSERT
+    let insurance = await config.flightSuretyData.getPassengerInsurance.call(delta, key, passenger1, {from: config.flightSuretyApp.address});
+    
+    assert.equal(insuranceAmount, insurance[0], "Flight insurance amount should be the same.");
+  });
+
+  it('(insurance) can get list of insured passengers for flight', async () => {
+
+    // ARRANGE
+    let nonce = 1;
+    var key;
+
+    // ACT
+    try {
+        // Get 1st Delta flight
+        key = await config.flightSuretyData.getFlightKey.call(delta, nonce, {from: config.flightSuretyApp.address});
+                                                            
+        await config.flightSuretyApp.buyFlightInsurance
+                                                    (
+                                                        delta,
+                                                        key,
+                                                        insuranceAmount,
+                                                        { from: passenger2, value: insuranceAmount, gas: 5000000}
+                                                    ); 
+
+        // Wait for the event
+        truffleAssert.eventEmitted(tx, 'FlightInsurancePurchased', (ev) => {
+            // Verify all emitted data matches
+            return passenger1 === ev.passenger && 
+                    delta === ev.airline && 
+                    key === ev.key && 
+                    insuranceAmount === ev.amount.toString();
+
+        }, 'Flight insurance purchased event error.');
+
+        await config.flightSuretyApp.buyFlightInsurance
+                                                    (
+                                                        delta,
+                                                        key,
+                                                        insuranceAmount,
+                                                        { from: passenger3, value: insuranceAmount, gas: 5000000}
+                                                    );
+
+        // Wait for the event
+        truffleAssert.eventEmitted(tx, 'FlightInsurancePurchased', (ev) => {
+            // Verify all emitted data matches
+            return passenger1 === ev.passenger && 
+                    delta === ev.airline && 
+                    key === ev.key && 
+                    insuranceAmount === ev.amount.toString();
+
+        }, 'Flight insurance purchased event error.');
+    }
+    catch(e) {
+
+    }
+
+    // ASSERT
+    let insurees = await config.flightSuretyData.getInsuredPassengers.call(delta, key, {from: config.flightSuretyApp.address});
+    assert.equal(insurees[0], passenger1, "Passenger1 is not in the flight insurees list");
+    assert.equal(insurees[1], passenger2, "Passenger2 is not in the flight insurees list");
   });
 
   it('(insurance) passenger cannot buy flight insurance for more than 1 ether', async () => {
@@ -400,12 +494,12 @@ contract('Flight Surety Tests', async (accounts) => {
         // Get 1st Delta flight
         let flightKey = await config.flightSuretyData.getFlightKey.call(delta, nonce, {from: config.flightSuretyApp.address});
 
-        let tx = await config.flightSuretyApp.buyFlightInsurance
+        await config.flightSuretyApp.buyFlightInsurance
                                                             (
                                                                 delta,
-                                                                key,
+                                                                flightKey,
                                                                 tooMuchInsurance,
-                                                                { from: passenger2, value: insuranceAmount, gas: 5000000}
+                                                                { from: passenger4, value: insuranceAmount, gas: 5000000}
                                                             );
     }
     catch {
