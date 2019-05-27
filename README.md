@@ -160,14 +160,30 @@ NOTE: You can use the trash can icon to clear the transaction and event messages
 http://localhost:8000
 ```
 
+### Register a new Airline
 ![](images/register-fund.png)
+
 ![](images/display-register-fund.png)
+
+### Register the new Airline's Flight
+
 ![](images/register-flight.png)
+
 ![](images/display-register-flight.png)
+
+### Passenger Purchases Insurance
+
 ![](images/purchase-insurance.png)
+
 ![](images/display-purchase-insurance.png)
+
+### Submit Request For Flight Status
+
 ![](images/submit-oracles.png)
 ![](images/display-flight-status.png)
+
+### Passenger Withdraws Insurance Payout
+
 ![](images/withdraw-payout.png)
 ![](images/display-payout-events.png)
 
