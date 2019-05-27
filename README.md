@@ -106,7 +106,7 @@ truffle test test/oracles.js
 
 All tests should pass.
 
-### Register the Oracles with the FlightSuretyApp Contract
+## Register the Oracles with the FlightSuretyApp Contract
 
 In a separate terminal window, start the Oracle server app:
 
@@ -149,7 +149,7 @@ Run the local development server to start the FlightSurety DApp, which will laun
 In a separate terminal window, start the FlightSurety DApp:
 
 ```
-cd flight-sureity/src/dapp
+cd flight-surety/src/dapp
 ```
 
 ```
