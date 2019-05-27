@@ -45,7 +45,7 @@ Install Truffle and Ganache.
 ```
 npm install -g truffle@5.0.17
 ```
-Modify your Ganache settings so that it has 50 accounts, each starting with 100 ether. Between the number of accounts needed for the airlines, passengers, Oracles and testing, you'll need that.
+Modify your Ganache settings so that it has 50 accounts, each starting with 500 ether. Between the number of accounts needed for the airlines, passengers, Oracles and testing, you'll need that.
 
 ![](images/ganache-setup.png)
 
@@ -69,7 +69,7 @@ Launch Ganache:
 ![](images/ganache.png)
 
 
-In a separate terminal window, Compile and migrate smart contracts to the locally running blockchain (Ganache):
+Compile and migrate smart contracts to the locally running blockchain (Ganache):
 
 ```
 truffle migrate --reset
@@ -83,10 +83,6 @@ This will create the smart contract artifacts in the ```build/contracts``` folde
 ### Testing the FlightSurety DApp with Oracles
 
 Run the DApp FlightSurety tests:
-
-```
-cd flight-surety
-```
 
 ```
 truffle test test/flightSurety.js
@@ -155,6 +151,27 @@ cd flight-surety/src/dapp
 ```
 npm run dapp
 ```
+
+Launch the DApp in the browser:
+
+NOTE: You can use the trash can icon to clear the transaction and event messages.
+
+```
+http://localhost:8000
+```
+
+![](images/register-fund.png)
+![](images/display-register-fund.png)
+![](images/register-flight.png)
+![](images/display-register-flight.png)
+![](images/purchase-insurance.png)
+![](images/display-purchase-insurance.png)
+![](images/submit-oracles.png)
+![](images/display-flight-status.png)
+![](images/withdraw-payout.png)
+![](images/display-payout-events.png)
+
+
 
 ## Packages
 
