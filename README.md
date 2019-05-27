@@ -1,52 +1,179 @@
-# flight-surety
+# FlightSurety - Udacity Project
+*a decentralized flight insurance sample application that incorporates Oracles and smart contracts to issue passenger payouts for delayed flights*
 
-flight-surety is a decentralized app that uses smart contracts to handle flight insurance payouts for delayed flights.
+## Description
+This repository contains an Ethereum DApp that demonstrates various aspects of a blockchain-based Flight Insurance program. The application architecture has these components:
+* FlightSurety UI (DApp)
+* Ethereum Smart Contracts with separation of concerns: Business/App and Data contracts
+* Server application for Oracle flight status request/response simulation
 
-## Install
+## Airlines
+On deployment there is one Airline already registered and funded, and has a set of flights. You can use the DApp to register additional airline accounts. The 1st truffle ganache account is used for the deployment of the smart contracts and is the contract owner. The 2nd account is used to add and register the initial airline, Delta, and Delta Flights.
 
-This repository contains Smart Contract code in Solidity (using Truffle), tests (also using Truffle), dApp scaffolding (using HTML, CSS and JS) and server app scaffolding.
+![](images/dapp-airlines.png)
 
-To install, download or clone the repo, then:
+* Only existing (already registered) airlines can register a new airline, up to four airlines.
+* After there are at least four airlines registered, the fifth airline will require that multi-party consensus of 50% of registered airlines before it's approved.
+* An airline cannot participate in the FlightSurety program until it has submitted funding of 10 ether. You can use the DApp to fund a new airline, by clicking on the `Send Funds` button.
 
-`npm install`
-`truffle compile`
+## Flights
+The FlightSurety Data contract is setup on deployment with five pre-registered flights. You can use the DApp to add more flights or use the passengers section to select an existing flight.
 
-## Develop Client
+![](images/dapp-passengers.png)
 
-To run truffle tests:
+* A passenger can purchase flight insurance up to 1 ether.
 
-`truffle test ./test/flightSurety.js`
-`truffle test ./test/oracles.js`
+## Oracles and Processing Flight Status Updates
+The FlightSurety DApp simulates 20+ Oracle accounts by registering and paying a fee of 1 ether to the FlightSuretyApp Contract. Once registered via the Oracle server simulator you can use the DApp UI to trigger the request for flight status information. The registered Oracles watch for the OracleRequest event and respond based on at least one match of their index to the request's index values. 
 
-To use the dapp:
+After at least three of the same responses are received by the FlightSuretyApp contract, the request is accepted as the flight status and the request is closed. Any additional Oracle reports will be rejected.
 
-`truffle migrate`
-`npm run dapp`
+To trigger the Oracle flight status request, click on the `Submit to Oracles` button. You may need to do the request more than once before a 'late' status event is emitted.
 
-To view dapp:
+When it's determined via the Oracles that a flight is delayed, the FlightSuretyApp contract will automatically go through the list of insured passengers for the airline/flight and will issue a payout of 1.5X the original purchase. The InsurancePassengerPayout event is emitted and the passenger's FlightSurety account is credited with the payout.
 
-`http://localhost:8000`
+The passenger is then able to initiate the payout withdrawal to transfer the funds to their account or wallet address. Use the `Withdraw Payout` button in the DApp UI and your Ganache accounts to observe the transfer of funds to the passenger account. The sample application uses the 7th Ganache account for the passenger processing.
 
-## Develop Server
+## Getting Started
 
-`npm run server`
-`truffle test ./test/oracles.js`
+These instructions will get the project up and running in your local development environment.
 
-## Deploy
+### Prerequisites
 
-To build dapp for prod:
-`npm run dapp:prod`
+Install Truffle and Ganache. 
 
-Deploy the contents of the ./dapp folder
+```
+npm install -g truffle@5.0.17
+```
+Modify your Ganache settings so that it has 50 accounts, each starting with 100 ether. Between the number of accounts needed for the airlines, passengers, Oracles and testing, you'll need that.
+
+![](images/ganache-setup.png)
+
+### Installing
+
+Clone this repository:
+
+```
+git clone [repo]
+```
+
+Change directory to the ```flight-surety``` folder and install all requisite npm packages (as listed in ```package.json```):
+
+```
+cd flight-surety
+npm install
+```
+
+Launch Ganache:
+
+![](images/ganache.png)
 
 
-## Resources
+In a separate terminal window, Compile and migrate smart contracts to the locally running blockchain (Ganache):
 
-* [How does Ethereum work anyway?](https://medium.com/@preethikasireddy/how-does-ethereum-work-anyway-22d1df506369)
-* [BIP39 Mnemonic Generator](https://iancoleman.io/bip39/)
-* [Truffle Framework](http://truffleframework.com/)
-* [Ganache Local Blockchain](http://truffleframework.com/ganache/)
-* [Remix Solidity IDE](https://remix.ethereum.org/)
-* [Solidity Language Reference](http://solidity.readthedocs.io/en/v0.4.24/)
-* [Ethereum Blockchain Explorer](https://etherscan.io/)
-* [Web3Js Reference](https://github.com/ethereum/wiki/wiki/JavaScript-API)
+```
+truffle migrate --reset
+```
+
+![](images/compile-migrate-deploy.png)
+
+
+This will create the smart contract artifacts in the ```build/contracts``` folder.
+
+### Testing the FlightSurety DApp with Oracles
+
+Run the DApp FlightSurety tests:
+
+```
+cd flight-surety
+```
+
+```
+truffle test test/flightSurety.js
+```
+
+![](images/flightsurety-tests.png)
+
+
+Run the Oracle server tests:
+
+```
+truffle test test/oracles.js
+```
+
+![](images/oracles-tests.png)
+
+
+All tests should pass.
+
+### Register the Oracles with the FlightSuretyApp Contract
+
+In a separate terminal window, start the Oracle server app:
+
+```
+cd flight-surety/src/server
+```
+
+```
+npm run server
+```
+
+The Oracle server implements a REST API. To view the main server page:
+
+```
+http://localhost:3000
+```
+
+![](images/oracles-server.png)
+
+
+Use the API to tell the Oracles to register:
+
+```
+http://localhost:3000/api/oracles/register
+```
+
+You should see the following response:
+
+![](images/oracles-register-response.png)
+
+In the terminal window where you started the Oracle server, watch them all register with the FlightSuretyApp contract:
+
+![](images/oracles-registered.png)
+
+
+## Interacting with the FlightSurety DApp
+
+Run the local development server to start the FlightSurety DApp, which will launch the UI in your browser.
+
+In a separate terminal window, start the FlightSurety DApp:
+
+```
+cd flight-sureity/src/dapp
+```
+
+```
+npm run dapp
+```
+
+## Packages
+
+* web3js
+* truffle
+* truffle-assertions
+* truffle-hdwallet-provider
+* open-zeppelin
+* webpack
+
+## Attribution
+
+Adapted from the [Udacity FlightSurety](https://github.com/udacity/FlightSurety) project.
+
+## Versions
+
+* Truffle v5.0.17 (core: 5.0.16)
+* Solidity ^0.5.8 (solc-js)
+* OpenZeppelin ^2.2.0
+* Node v10.15.3
+* Web3.js ^1.0.0-beta.55
+(Truffle currently uses Web3.js v1.0.0-beta.37 and overrides the version installed)
